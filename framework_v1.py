@@ -6,24 +6,12 @@ from lanelet2.projection import UtmProjector
 import constants
 
 
-
-def test():
-    # Test functionalities of Lanelet2
-
-    # Load example file from lanelet2
-    example_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "res/mapping_example.osm")
-    map_ll, graph = load_map(example_file)
-
-    print(dir(map_ll))
-    print(type(map_ll.lineStringLayer[43836].attributes))
-    print(graph.following(map_ll.laneletLayer[45066])[0])
-
-
 def framework():
     # Process Lanelet2 map and derive behavior spaces
 
     # Load example file from lanelet2
-    map_ll, graph = load_map()
+    example_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "res/mapping_example.osm")
+    map_ll, graph = load_map(example_file)
 
     # Make list with all IDs of lanelets that are relevant
     ll_rel = [item.id for item in map_ll.laneletLayer if ll_relevant(item.attributes)]
@@ -149,6 +137,7 @@ def create_long_bdrs(ll, map_ll, direction, d_id):
 
 def find_line(pt1, pt2, lsLayer):
     # Find a linestring that contains two given points and return its ID and whether it has a length of 2
+    # Todo: Optimize search (use lanelet2 functions) and check for multiple linestrings
 
     line_id = []
     len_ok = False
@@ -169,5 +158,4 @@ def create_placeholder(ll):
 
 
 if __name__ == '__main__':
-    test()
-    # framework()
+    framework()
