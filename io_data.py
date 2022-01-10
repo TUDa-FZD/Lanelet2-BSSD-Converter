@@ -40,10 +40,12 @@ def merge_files(file1, file2, file3='output.osm'):
     # Reading data from file1
     with open(file1) as fp:
         data = fp.readlines()[:-1]
+    os.remove(file1)
 
     # Reading data from file2
     with open(file2) as fp:
         data2 = fp.readlines()[2:]
+    os.remove(file2)
 
     # Merging 2 files
     data += data2
