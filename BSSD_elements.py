@@ -62,7 +62,11 @@ class BehaviorSpace(BSSD_element):
         # return str([id_str, behavior_fwd, behavior_bwd])
         return id_str + behavior_fwd + behavior_bwd
 
-    def __add__(self, bs_other):
+    def __eq__(self, other):
+        # Function for comparing behavior of two behavior spaces
+        pass
+
+    def __add__(self, other):
         # Function for joining two behavior spaces
         pass
 
