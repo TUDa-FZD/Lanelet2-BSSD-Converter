@@ -1,61 +1,55 @@
 import lanelet2
 import os
+import time
 from lanelet2.core import AttributeMap, TrafficLight, Lanelet, LineString3d, Point2d, Point3d, getId, \
     LaneletMap, BoundingBox2d, BasicPoint2d
 from lanelet2.projection import UtmProjector
+
+import BSSD_elements
+from BSSD_elements import create_placeholder
 import constants
+import io_data
 
 
-
-def test():
-    # Test functionalities of Lanelet2
-
-    # Load example file from lanelet2
-    example_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "res/mapping_example.osm")
-    map_ll, graph = load_map(example_file)
-
-    print(dir(map_ll))
-    print(type(map_ll.lineStringLayer[43836].attributes))
-    print(graph.following(map_ll.laneletLayer[45066])[0])
-
-
-def framework():
+def main():
     # Process Lanelet2 map and derive behavior spaces
 
+    # ----------- INPUT --------------
     # Load example file from lanelet2
-    map_ll, graph = load_map()
+    example_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "res/mapping_example.osm")
+    map_ll, graph = io_data.load_map(example_file)
 
+    # ------- PREPROCESSING --------------
     # Make list with all IDs of lanelets that are relevant
+    start = time.perf_counter()
     ll_rel = [item.id for item in map_ll.laneletLayer if ll_relevant(item.attributes)]
 
+    BSSD = BSSD_elements.bssdClass()
+    end = time.perf_counter()
+    print(f"Preprocessing done. Elapsed time: {round(end - start, 2)}")
+
+    # ----------- PROCESSING --------------
     # Recursively loop through all lanelets to perform desired actions for each (e.g. derive long. boundary)
+    start = time.perf_counter()
     while ll_rel:
         # print('start')
-        ll_rel = ll_recursion(map_ll.laneletLayer[ll_rel[0]], ll_rel, graph, map_ll)
+        BSSD, ll_rel = ll_recursion(map_ll.laneletLayer[ll_rel[0]], ll_rel, graph, map_ll, BSSD)
+    end = time.perf_counter()
+    print(f"Processing done. Elapsed time: {round(end - start, 2)}")
 
+    # ----------- OUTPUT --------------
     # Save edited .osm-map to desired file
-    file = "lanelet2_map_edit.osm"
-    save_map(map_ll, file)
+    start = time.perf_counter()
+    file1 = "map_ll.osm"
+    file2 = "map_bssd.osm"
+    io_data.save_map(map_ll, file1)
+    io_data.write_bssd_elements(BSSD, file2)
+    io_data.merge_files(file1, file2)
+    end = time.perf_counter()
+    print(f"BSSD file is written. Elapsed time: {round(end - start, 2)}")
 
 
-def load_map(path):
-    # Load a Lanelet2-map from a given file and creating a map and graph for storing its data in variables.
-
-    projector = UtmProjector(lanelet2.io.Origin(49, 8.4))
-    map_ll = lanelet2.io.load(path, projector)
-    traffic_rules = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
-                                                  lanelet2.traffic_rules.Participants.Vehicle)
-    graph = lanelet2.routing.RoutingGraph(map_ll, traffic_rules)
-
-    return map_ll, graph
-
-
-def save_map(map_ll, file_path):
-    projector = UtmProjector(lanelet2.io.Origin(49, 8.4))
-    lanelet2.io.write(file_path, map_ll, projector)
-
-
-def ll_recursion(ll, ll_rel, graph, map_ll, direction=None, d_id=None):
+def ll_recursion(ll, ll_rel, graph, map_ll, map_bssd, direction=None, d_id=None):
 
     if ll.id in ll_rel:
         # Remove current lanelet from list of relevant lanelets to keep track which lanelets still have to be done
@@ -64,15 +58,15 @@ def ll_recursion(ll, ll_rel, graph, map_ll, direction=None, d_id=None):
         # Perform derivation of behavior space from current lanelet
         # atm only long. boundary
         fid, bid, map_ll = derive_abs_geom(ll, map_ll, direction, d_id)
-
+        create_placeholder(map_bssd, ll, fid, bid)
         # Call function in itself for the succeeding and preceding lanelet and hand over information
         # about already created boundaries
         for successor in graph.following(ll):
-            ll_recursion(successor, ll_rel, graph, map_ll, 'fwd', fid)
+            map_bssd, ll_rel = ll_recursion(successor, ll_rel, graph, map_ll, map_bssd, 'fwd', fid)
         for predecessor in graph.previous(ll):
-            ll_recursion(predecessor,  ll_rel, graph, map_ll, 'bwd', bid)
+            map_bssd, ll_rel = ll_recursion(predecessor,  ll_rel, graph, map_ll, map_bssd, 'bwd', bid)
             
-    return ll_rel
+    return map_bssd, ll_rel
 
 
 def ll_relevant(att):
@@ -120,7 +114,8 @@ def create_long_bdrs(ll, map_ll, direction, d_id):
             id_linestring = d_id
         elif pt_left == pt_right:
             # No longitudinal boundary exists
-            print(ll.id)        
+            # print(ll.id)
+            pass
         else:
             # Check for existing lineStrings (e.g. stop_line)
             id_line, length_ok = find_line(pt_left, pt_right, map_ll.lineStringLayer)
@@ -149,6 +144,7 @@ def create_long_bdrs(ll, map_ll, direction, d_id):
 
 def find_line(pt1, pt2, lsLayer):
     # Find a linestring that contains two given points and return its ID and whether it has a length of 2
+    # Todo: Optimize search (use lanelet2 functions) and check for multiple linestrings
 
     line_id = []
     len_ok = False
@@ -162,12 +158,5 @@ def find_line(pt1, pt2, lsLayer):
     return line_id, len_ok
 
 
-def create_placeholder(ll):
-    # Function that calls code to create empty placeholders for all objects that are necessary for
-    # a behavior space in the BSSD.
-    assert ll
-
-
 if __name__ == '__main__':
-    test()
-    # framework()
+    main()
