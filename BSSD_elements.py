@@ -51,8 +51,7 @@ class BehaviorSpace(BSSD_element):
         self.members = [('r', self.B_fwd_id, 'forward'), ('r', self.B_bwd_id, 'backward')]
 
         if ll:
-            for id_ll in ll:
-                self.members.append(('r', id_ll, 'ref lanelet'))
+            self.members.append(('r', ll, 'ref lanelet'))
 
     def __str__(self):
         # Print ID and Behavior ID for fwd and bwd
