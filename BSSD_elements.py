@@ -67,33 +67,33 @@ class BSSD_element():
 
 class BehaviorSpace(BSSD_element):
 
-    def __init__(self, b_fwd, b_bwd, ll=None):
+    def __init__(self, b_agst, b_alg, ll=None):
         super().__init__()
-        self.forwardBehavior = b_fwd
-        self.backwardBehavior = b_bwd
+        self.alongBehavior = b_agst
+        self.againstBehavior = b_alg
         self.ref_lanelet = ll
-        self.tags = {'type': 'behavior_space', 'subtype': 'forward'}
-        self.members = [('r', self.forwardBehavior.id, 'forward'),
-                        ('r', self.backwardBehavior.id, 'backward')]
+        self.tags = {'type': 'behavior_space', 'subtype': 'along'}
+        self.members = [('r', self.alongBehavior.id, 'along'),
+                        ('r', self.againstBehavior.id, 'against')]
 
         if ll:
             self.members.append(('r', ll, 'ref_lanelet'))
 
     def __str__(self):
-        # Print ID and Behavior ID for fwd and bwd
+        # Print ID and Behavior ID for agst and alg
         id_str = 'id: ' + str(self.id)
-        behavior_fwd = ', id behavior forward: ' + str(self.forwardBehavior.id)
-        behavior_bwd = ', id behavior backward: ' + str(self.backwardBehavior.id)
+        behavior_agst = ', id behavior along: ' + str(self.alongBehavior.id)
+        behavior_alg = ', id behavior against: ' + str(self.againstBehavior.id)
 
-        # return str([id_str, behavior_fwd, behavior_bwd])
-        return id_str + behavior_fwd + behavior_bwd
+        # return str([id_str, behavior_agst, behavior_alg])
+        return id_str + behavior_agst + behavior_alg
 
     def __eq__(self, other):
         # Function for comparing behavior of two behavior spaces
         if not type(self) == type(other):
             return False
-        elif (not self.forwardBehavior == other.forwardBehavior or
-              not self.backwardBehavior == other.backwardBehavior):
+        elif (not self.alongBehavior == other.alongBehavior or
+              not self.againstBehavior == other.againstBehavior):
             return False
         return self.tags == other.tags
 
@@ -112,7 +112,7 @@ class BehaviorSpace(BSSD_element):
         pass
 
     def get_subelements(self):
-        return [self.forwardBehavior, self.backwardBehavior]
+        return [self.alongBehavior, self.againstBehavior]
 
 
 class Behavior(BSSD_element):
@@ -214,7 +214,7 @@ class Boundary_long(BSSD_element):
         return id_str + bdr
 
 
-def create_placeholder(lanelet=None, bdr_fwd=None, bdr_bwd=None):
+def create_placeholder(lanelet=None, bdr_agst=None, bdr_alg=None):
     # Function that calls code to create empty placeholders for all objects that
     # are necessary for a behavior space in the BSSD.
     def create_behavior(leftBdr, rightBdr, longBdr):
@@ -233,7 +233,7 @@ def create_placeholder(lanelet=None, bdr_fwd=None, bdr_bwd=None):
         rB_ll = lanelet.rightBound
         id_ll = lanelet.id
 
-    behavior_fwd = create_behavior(lB_ll, rB_ll, bdr_fwd)
-    behavior_bwd = create_behavior(rB_ll, lB_ll, bdr_bwd)
+    behavior_agst = create_behavior(lB_ll, rB_ll, bdr_agst)
+    behavior_alg = create_behavior(rB_ll, lB_ll, bdr_alg)
 
-    return BehaviorSpace(behavior_fwd, behavior_bwd, id_ll)
+    return BehaviorSpace(behavior_agst, behavior_alg, id_ll)
