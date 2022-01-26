@@ -11,11 +11,17 @@ def load_map(path, origin_coordinates=None):
         origin_coordinates = [49, 8.4]
     projector = UtmProjector(lanelet2.io.Origin(origin_coordinates[0], origin_coordinates[1]))
     map_ll = lanelet2.io.load(path, projector)
+
+    return map_ll
+
+
+def get_RoutingGraph(map_lanelet):
+
     traffic_rules = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
                                                   lanelet2.traffic_rules.Participants.Vehicle)
-    graph = lanelet2.routing.RoutingGraph(map_ll, traffic_rules)
+    graph = lanelet2.routing.RoutingGraph(map_lanelet, traffic_rules)
 
-    return map_ll, graph
+    return graph
 
 
 def save_map(map_ll, file_path, origin_coordinates=None):
@@ -41,6 +47,7 @@ def write_bssd_elements(bssd, file):
 
 def merge_files(file1, file2, file3='output.osm'):
     data = data2 = ""
+    path_output = 'Output/' + file3[:-4] + '_BSSD.osm'
 
     # Reading data from Lanelet2 file and deleting the file afterwards
     with open(file1) as fp:
@@ -55,7 +62,7 @@ def merge_files(file1, file2, file3='output.osm'):
     # Merging both files
     data += data2
 
-    if os.path.isfile(file3):
-        os.remove(file3)
-    with open(file3, 'w') as fp:
+    if os.path.isfile(path_output):
+        os.remove(path_output)
+    with open(path_output, 'w') as fp:
         fp.writelines(data)

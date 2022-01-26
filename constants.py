@@ -3,8 +3,7 @@ SUBTYPE_TAGS = ["road",
                  "highway",
                  "play_street",
                  "emergency_lane",
-                 "bus_lane",
-                 "bicycle_lane"
+                 "bus_lane"
                  ]
 
 OVERRIDE_TAGS = ["pedestrian",

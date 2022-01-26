@@ -16,21 +16,34 @@ def main():
 
     # ----------- INPUT --------------
     # Load example file from lanelet2
-    example_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "res/mapping_example.osm")
-    map_ll, graph = io_data.load_map(example_file)
+    filename = "res/mapping_example.osm"
+    example_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    map_ll = io_data.load_map(example_file)
 
     # ------- PREPROCESSING --------------
     # Make list with all IDs of lanelets that are relevant
     start = time.perf_counter()
     ll_rel = [item.id for item in map_ll.laneletLayer if ll_relevant(item.attributes)]
-    for ll in ll_rel:
-        if map_ll.laneletLayer[ll].attributes['subtype'] == 'bicycle_lane':
-            print('b_lane: ', ll)
-            id_ls1, outer_pts1 = find_line(map_ll.laneletLayer[ll].leftBound[0].id, map_ll.laneletLayer[ll].rightBound[0].id, map_ll)
-            id_ls2, outer_pts2 = find_line(map_ll.laneletLayer[ll].leftBound[-1].id, map_ll.laneletLayer[ll].rightBound[-1].id, map_ll)
-            if outer_pts2 and outer_pts1:
-                print('pt ids: ' , id_ls1, id_ls2)
-                ll_rel.remove(ll)
+    ll_bicycle = [item for item in map_ll.laneletLayer if item.attributes['subtype'] == 'bicycle_lane']
+
+    for ll in ll_bicycle:
+        nbrs_left = map_ll.laneletLayer.findUsages(ll.leftBound)
+        nbrs_left.remove(ll)
+        nbrs_right = map_ll.laneletLayer.findUsages(ll.rightBound)
+        nbrs_right.remove(ll)
+
+        if len(nbrs_left) > 1 or len(nbrs_right) > 1:
+            print(f"For bicycle_lane with ID {ll.id}: Multiple neighbors have been found")
+
+        if (nbrs_left and ls_of_pbl(ll.leftBound.attributes) and ll_relevant(nbrs_left[0].attributes)) or \
+                (nbrs_right and ls_of_pbl(ll.rightBound.attributes) and ll_relevant(nbrs_right[0].attributes)):
+            ll.attributes['subtype_alt'] = 'bicycle_lane_protected'
+            ll.attributes['participant:vehicle'] = 'yes'
+            ll.attributes['participant:bicycle'] = 'yes'
+            ll_rel.append(ll.id)
+            ll_bicycle.remove(ll)
+
+    graph = io_data.get_RoutingGraph(map_ll)
 
     BSSD = BSSD_elements.bssdClass()
     end = time.perf_counter()
@@ -53,7 +66,7 @@ def main():
     io_data.save_map(map_ll, file1)
 
     io_data.write_bssd_elements(BSSD, file2)
-    io_data.merge_files(file1, file2)
+    io_data.merge_files(file1, file2, filename[3:])
     end = time.perf_counter()
     print(f"BSSD file is written. Elapsed time: {round(end - start, 2)}")
 
@@ -102,6 +115,13 @@ def ll_relevant(att):
     return relevant
 
 
+def ls_of_pbl(att):
+    if ('line' in att['type'] and att['subtype'] == 'dashed') or att['type'] == 'virtual':
+        return True
+    else:
+        return False
+
+
 def derive_abs_geom(ll, map_ll, direction, d_id):
     # Function to derive the geometry of an atomic behavior space from a lanelet
     # atm only long. boundaries
@@ -132,15 +152,17 @@ def create_long_bdrs(ll, map_ll, direction, d_id):
             id_line, use_as_bdr = find_line(pt_left, pt_right, map_lanelet)
             if use_as_bdr:
                 ls = map_lanelet.lineStringLayer[id_line[0]]
-            elif id_line:
-                # Todo: Integrate into class boundary_long
-                ref_line = id_line[0]
 
             # Create new line, if necessary
             else:
                 pt_pairs = [map_lanelet.pointLayer[pt_left], map_lanelet.pointLayer[pt_right]]
                 ls = LineString3d(getId(), pt_pairs, {'type': 'BSSD', 'subtype': 'Boundary'})
                 map_lanelet.add(ls)
+
+                if id_line:
+                    # Todo: Integrate into class boundary_long
+                    ref_line = id_line[0]
+
 
         return map_lanelet, ls
 
@@ -154,6 +176,7 @@ def create_long_bdrs(ll, map_ll, direction, d_id):
 def find_line(pt1, pt2, map_lanelet):
     # Find a linestring that contains two given points and return its ID and whether it has a length of 2
 
+    llLayer = map_lanelet.laneletLayer
     lsLayer = map_lanelet.lineStringLayer
     ptLayer = map_lanelet.pointLayer
 
@@ -162,18 +185,38 @@ def find_line(pt1, pt2, map_lanelet):
 
     lsList_pt1 = lsLayer.findUsages(ptLayer[pt1])
     lsList_pt2 = lsLayer.findUsages(ptLayer[pt2])
-    mutual_ls = list(set.intersection(set(lsList_pt1), set(lsList_pt2)))
 
+    # condition: linestrings shouldn't be part of lanelets as lat. boundary
+    lsList_pt1 = [ls for ls in lsList_pt1 if not llLayer.findUsages(ls)]
+    lsList_pt2 = [ls for ls in lsList_pt2 if not llLayer.findUsages(ls)]
+
+    mutual_ls = list(set.intersection(set(lsList_pt1), set(lsList_pt2)))
+    non_mutual_ls = list((set(lsList_pt1) ^ set(lsList_pt2)))
+    # print(non_mutual_ls)
     if len(mutual_ls) > 1:
         print("Multiple linestrings with these points found. They have the following IDs:")
         for line in mutual_ls:
             print(line.id)
 
     for line in mutual_ls:
-        line_id.append(line.id)
+        # line_id.append(line.id)
         if ((line[0].id == pt1 and line[-1].id == pt2) or
                 (line[-1].id == pt1 and line[0].id == pt2)):
+            line_id.append(line.id)
             outer_points = True
+            # return [line.id], True
+        elif line.attributes['type'] == 'stop_line' or 'pedestrian_marking':
+            pass
+        else:
+            pass
+            # print(mutual_ls, pt1, pt2)
+
+    for line in non_mutual_ls:
+        if line.attributes['type'] == 'stop_line':
+            print(line.id)
+        else:
+            pass
+            # print(non_mutual_ls, pt1, pt2)
 
     return line_id, outer_points
 
