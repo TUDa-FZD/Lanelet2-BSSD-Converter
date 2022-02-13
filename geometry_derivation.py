@@ -7,6 +7,7 @@ from lanelet2.core import AttributeMap, TrafficLight, Lanelet, LineString3d, Poi
 def get_long_bdr(map_lanelet, pt_left, pt_right, side, direction, d_id):
 
     ls = None
+    ref_line = None
 
     llLayer = map_lanelet.laneletLayer
     lsLayer = map_lanelet.lineStringLayer
@@ -77,6 +78,7 @@ def get_long_bdr(map_lanelet, pt_left, pt_right, side, direction, d_id):
                 ref_line = lines['insufficient_full'][0]
             else:
                 pt_pairs = [pt_left, pt_right]
+
             pt_pairs = [ptLayer[pt.id] for pt in pt_pairs]
             ls = LineString3d(getId(), pt_pairs, {'type': 'BSSD', 'subtype': 'boundary'})
             map_lanelet.add(ls)
