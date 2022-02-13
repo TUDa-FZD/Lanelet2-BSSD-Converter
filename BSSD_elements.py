@@ -1,7 +1,6 @@
 from lanelet2.core import AttributeMap, TrafficLight, Lanelet, LineString3d, Point2d, Point3d, getId, \
     LaneletMap, BoundingBox2d, BasicPoint2d
 import constants
-from abc import ABC
 
 
 class bssdClass:
@@ -123,7 +122,7 @@ class Behavior(BSSD_element):
         self.longBound = bdr_long
         self.leftBound = bdr_left
         self.rightBound = bdr_right
-        self.tags = constants.BEHAVIOR_TAGS
+        self.tags.update(constants.BEHAVIOR_TAGS)
         # Todo: Give an option for multiple reservation instances
         self.members = [('r', self.reservation.id, 'reservation'),
                         ('r', self.leftBound.id, 'boundary_left'),
@@ -179,7 +178,7 @@ class Boundary_lat(BSSD_element):
     def __init__(self, bdr=None):
         super().__init__()
         self.lineString = bdr
-        self.tags = constants.BOUNDARY_LAT_TAGS
+        self.tags.update(constants.BOUNDARY_LAT_TAGS)
 
         if bdr:
             self.members = [('w', self.lineString.id, 'boundary')]
