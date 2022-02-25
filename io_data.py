@@ -24,6 +24,31 @@ def get_RoutingGraph(map_lanelet):
     return graph
 
 
+def get_RoutingGraph_all(map_lanelet):
+    traffic_rules = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
+                                                  lanelet2.traffic_rules.Participants.Vehicle)
+    edited = {}
+
+    for ll in map_lanelet.laneletLayer:
+        if not traffic_rules.canPass(ll):
+            if 'participant:vehicle' in ll.attributes:
+                edited[ll] = ll.attributes['participant:vehicle']
+            else:
+                edited[ll] = None
+            ll.attributes['participant:vehicle'] = 'yes'
+
+    graph = lanelet2.routing.RoutingGraph(map_lanelet, traffic_rules)
+
+    for ll, value in edited.items():
+        if value:
+            ll.attributes['participant:vehicle'] = value
+        else:
+            del ll.attributes['participant:vehicle']
+
+    return graph
+
+
+
 def save_map(map_ll, file_path, origin_coordinates=None):
     if origin_coordinates is None:
         origin_coordinates = [49, 8.4]

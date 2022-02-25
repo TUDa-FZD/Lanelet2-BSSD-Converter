@@ -1,16 +1,25 @@
 import lanelet2
+from preprocessing import ll_relevant
+import constants
+import logging
+logger = logging.getLogger(__name__)
 
 
-def derive_behavior(bs, lanelet, map_lanelet):
+def derive_behavior(bs, lanelet, map_lanelet, routing_graph):
     traffic_rules = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
                                                   lanelet2.traffic_rules.Participants.Vehicle)
 
     a_layer = map_lanelet.areaLayer
+    ll_layer = map_lanelet.laneletLayer
+    ls_layer = map_lanelet.lineStringLayer
 
     bs.alongBehavior.tags['speed_limit'] = str(round(traffic_rules.speedLimit(lanelet).speedLimit))
 
     bs = derive_behavior_bdr_lat(bs, a_layer, 'left')
     bs = derive_behavior_bdr_lat(bs, a_layer, 'right')
+
+    derive_behavior_bdr_long(bs.alongBehavior, lanelet, routing_graph, ll_layer, ls_layer)
+    derive_behavior_bdr_long(bs.againstBehavior, lanelet, routing_graph, ll_layer, ls_layer)
 
     return bs
 
@@ -32,7 +41,63 @@ def derive_behavior_bdr_lat(behavior_space, area_layer, side):
     return behavior_space
 
 
+def derive_behavior_bdr_long(behavior, ll, graph, ll_layer, ls_layer):
+
+    types = ['pedestrian_marking', 'zebra_marking']
+    subtypes = ['crosswalk']
+    if behavior.longBound and behavior.longBound.ref_line:
+        ls = behavior.longBound.ref_line
+        ls = ls_layer[ls]
+        if ls.attributes['type'] in types:
+            set_from_ls = set(ll_layer.findUsages(ls) + ll_layer.findUsages(ls.invert()))
+            set_from_conflict = set(graph.conflicting(ll))
+            set_common = set_from_ls ^ set_from_conflict
+
+            if any(lanelet.attributes['subtype'] in subtypes for lanelet in set_common):
+                behavior.longBound.tags['no_stagnant_traffic'] = 'yes'
+
+    return
+
+
+def derive_segment_speed_limit(ll, map_ll):
+    ll_layer = map_ll.laneletLayer
+    own_direction = find_adjacent(ll_layer, ll)
+    for ll in own_direction:
+        other_direction = ll_layer.findUsages(ll.leftBound)
+        if other_direction and other_direction[0].attributes['type'] not in constants.SEPARATION_TAGS:
+            other_direction = find_adjacent(ll_layer, other_direction[0])
+            break
+
+    pass
+
+
+def find_adjacent(ll_layer, current_ll):
+    lefts = {ll for ll in ll_layer.findUsages(current_ll.leftBound) if ll_relevant(ll.attributes)}
+    rights = {ll for ll in ll_layer.findUsages(current_ll.rightBound) if ll_relevant(ll.attributes)}
+
+    lanelets_for_direction = lefts.union(rights)
+
+    lefts = lefts - lanelets_for_direction
+    rights = rights - lanelets_for_direction
+
+    for lanelet in lefts:
+        lanelets_for_direction.update(find_adjacent(ll_layer, lanelet))
+
+    for lanelet in rights:
+        lanelets_for_direction.update(find_adjacent(ll_layer, lanelet))
+
+    return lanelets_for_direction
+
+
+def are_driving_directions_separated(map_lanelet, ll):
+
+    pass
+
+
 def distinguish_lat_boundary(att, side):
+    if 'type' not in att:
+        return ''
+
     if att['type'] == 'curbstone':
         if 'subtype' not in att:
             return 'not_possible'

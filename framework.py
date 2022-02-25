@@ -9,40 +9,74 @@ import constants
 import io_data
 from behavior_derivation import derive_behavior
 from geometry_derivation import get_long_bdr
-from copy import deepcopy
+from preprocessing import ll_relevant, get_relevant_bicycle_lls
+import logging
+import argparse
+
+
+logging.basicConfig(filename='derivation.log',
+                    level=logging.DEBUG,
+                    filemode='w',
+                    format='[%(asctime)s] %(levelname)s %(message)s')
+logger = logging.getLogger(__name__)
+stream = logging.StreamHandler()
+stream.setLevel(logging.INFO)
+streamformat = logging.Formatter("%(levelname)s:%(message)s")
+stream.setFormatter(streamformat)
+
+logger.addHandler(stream)
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Run BSSD-derivation framework")
+    parser.add_argument("-in", help="Lanelet2 map file", dest="filename", type=str, required=True)
+    parser.set_defaults(func=framework)
+    args = parser.parse_args()
+    args.func(args)
+
+
+def framework():
     # Process Lanelet2 map and derive behavior spaces
 
     # ----------- INPUT --------------
     # Load example file from lanelet2
-    filename = "res/DA_Nieder-Ramst-Mühlstr-Hochstr.osm"
+    # filename = args.filename
+    filename = "res/aseag.osm"
     example_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     pos_ids_file_path = "/home/jannik/Documents/WS_Lanelet2/src/lanelet2/lanelet2_python/scripts/make_ids_positive.py"
     os.system(f"python3 {pos_ids_file_path} -i {example_file}")
     map_ll = io_data.load_map(example_file)
 
+    logger.info(f'File {filename} loaded successfully')
+
     # ------- PREPROCESSING --------------
     # Make list with all IDs of lanelets that are relevant
     start = time.perf_counter()
+
+    logger.info(f'Start preprocessing. Finding relevant lanelets and distinguishing bicycle_lanes')
     ll_rel = [item.id for item in map_ll.laneletLayer if ll_relevant(item.attributes)]
     ll_rel, ll_bicycle = get_relevant_bicycle_lls(map_ll.laneletLayer, ll_rel)
 
+    logger.info(f'Determined relevant lanelets')
+
     graph = io_data.get_RoutingGraph(map_ll)
+    graph_all = io_data.get_RoutingGraph_all(map_ll)
+
+    logger.info(f'RoutingGraph for all lanelets created')
 
     BSSD = BSSD_elements.bssdClass()
     end = time.perf_counter()
-    print(f"Preprocessing done. Elapsed time: {round(end - start, 2)}")
+    logger.info(f"Preprocessing done. Elapsed time: {round(end - start, 2)}")
 
     # ----------- PROCESSING --------------
     # Recursively loop through all lanelets to perform desired actions for each (e.g. derive long. boundary)
     start = time.perf_counter()
+    logger.info(f'Start recursive loop through relevant lanelets')
     while ll_rel:
         # print('start')
-        BSSD, ll_rel = ll_recursion(map_ll.laneletLayer[ll_rel[0]], ll_rel, graph, map_ll, BSSD)
+        BSSD, ll_rel = ll_recursion(map_ll.laneletLayer[ll_rel[0]], ll_rel, graph_all, map_ll, BSSD)
     end = time.perf_counter()
-    print(f"Processing done. Elapsed time: {round(end - start, 2)}")
+    logger.info(f"Loop for relevant lanelets completed. Elapsed time: {round(end - start, 2)}")
 
     # ----------- OUTPUT --------------
     # Save edited .osm-map to desired file
@@ -54,7 +88,8 @@ def main():
     io_data.write_bssd_elements(BSSD, file2)
     io_data.merge_files(file1, file2, filename[3:])
     end = time.perf_counter()
-    print(f"BSSD file is written. Elapsed time: {round(end - start, 2)}")
+    logger.info(f'Saved map {filename[3:]} with BSSD extension in output directory\
+                Elapsed time: {round(end - start, 2)}')
 
 
 def ll_recursion(ll, list_relevant_ll, graph, map_ll, map_bssd, direction=None, ls=None):
@@ -63,90 +98,31 @@ def ll_recursion(ll, list_relevant_ll, graph, map_ll, map_bssd, direction=None, 
         # Remove current lanelet from list of relevant lanelets to keep track which lanelets still have to be done
         list_relevant_ll.remove(ll.id)
 
+        logger.debug(f'-----------------------------------------------')
+        logger.debug(f'Derivation for Lanelet {ll.id}')
+
         # Perform derivation of behavior space from current lanelet
         # atm only long. boundary
-        # fwd_ls, bwd_ls, map_ll = derive_abs_geom(ll, map_ll, direction, ls)
-        map_ll, fwd_ls, long_ref = get_long_bdr(map_ll, ll.leftBound[-1], ll.rightBound[-1], 'fwd', direction, ls)
-        map_ll, bwd_ls, long_ref = get_long_bdr(map_ll, ll.leftBound[0], ll.rightBound[0], 'bwd', direction, ls)
+        map_ll, fwd_ls, long_ref_f = get_long_bdr(map_ll, ll.leftBound[0], ll.rightBound[0], 'fwd' == direction, ls)
+        map_ll, bwd_ls, long_ref_b = get_long_bdr(map_ll, ll.leftBound[-1], ll.rightBound[-1], 'bwd' == direction, ls)
         # derive abs behavior
         new_bs = create_placeholder(ll, fwd_ls, bwd_ls)
-        new_bs = derive_behavior(new_bs, ll, map_ll)
+        logger.debug(f'Created Behavior Space {new_bs.id}')
+        new_bs.alongBehavior.assign_long_ref(long_ref_f, 'along')
+        new_bs.againstBehavior.assign_long_ref(long_ref_b, 'against')
+        new_bs = derive_behavior(new_bs, ll, map_ll, graph)
+        #new_bs = derive_speed_limit(new_bs, ll, map_ll, graph)
         map_bssd.add(new_bs)
-        #print(new_bs.alongBehavior.leftBound.tags['crossing'])
-        # for id_obj, bssd_object in map_bssd.BoundaryLatLayer.items():
-        #     print(bssd_object.tags['crossing'])
+
         # Call function in itself for the succeeding and preceding lanelet(s) and hand over information
         # about already derived boundaries
         for successor in graph.following(ll):
-            map_bssd, list_relevant_ll = ll_recursion(successor, list_relevant_ll, graph, map_ll, map_bssd, 'fwd', fwd_ls)
+            map_bssd, list_relevant_ll = ll_recursion(successor, list_relevant_ll, graph, map_ll, map_bssd, 'fwd', bwd_ls)
         for predecessor in graph.previous(ll):
-            map_bssd, list_relevant_ll = ll_recursion(predecessor,  list_relevant_ll, graph, map_ll, map_bssd, 'bwd', bwd_ls)
+            map_bssd, list_relevant_ll = ll_recursion(predecessor,  list_relevant_ll, graph, map_ll, map_bssd, 'bwd', fwd_ls)
             
     return map_bssd, list_relevant_ll
 
 
-def ll_relevant(att):
-    # Determine the relevance of a lanelet by first checking its subtype (for instance: shouldn't be "stairs")
-    # and second if any overriding participant-tags are being used
-
-    if att['subtype'] in constants.SUBTYPE_TAGS:
-
-        if any('participant' in key.lower() for key, value in att.items()):
-
-            if any(value == 'yes' for key, value in att.items() if 'participant:vehicle' in key.lower()):
-                relevant = True
-            else:
-                relevant = False
-
-        else:
-            relevant = True
-
-    else:
-        relevant = False
-
-    return relevant
-
-
-def ls_of_pbl(att):
-    if ('line' in att['type'] and att['subtype'] == 'dashed') or att['type'] == 'virtual':
-        return True
-    else:
-        return False
-
-
-def get_map_all_vehicle(map_original):
-
-    map_new = deepcopy(map_original)
-
-    for ll in map_new.laneletLayer:
-        ll.attributes['participant:vehicle'] = 'yes'
-
-    return map_new
-
-
-def get_relevant_bicycle_lls(ll_layer, list_relevant):
-
-    list_bicycle = [item for item in ll_layer if item.attributes['subtype'] == 'bicycle_lane']
-
-    for ll in list_bicycle:
-        nbrs_left = ll_layer.findUsages(ll.leftBound)
-        nbrs_left.remove(ll)
-        nbrs_right = ll_layer.findUsages(ll.rightBound)
-        nbrs_right.remove(ll)
-
-        if len(nbrs_left) > 1 or len(nbrs_right) > 1:
-            print(f"For bicycle_lane with ID {ll.id}: Multiple neighbors have been found")
-
-        if (nbrs_left and ls_of_pbl(ll.leftBound.attributes) and ll_relevant(nbrs_left[0].attributes)) or \
-                (nbrs_right and ls_of_pbl(ll.rightBound.attributes) and ll_relevant(nbrs_right[0].attributes)):
-            ll.attributes['subtype_alt'] = 'bicycle_lane_protected'
-            ll.attributes['participant:vehicle'] = 'yes'
-            ll.attributes['participant:bicycle'] = 'yes'
-            list_relevant.append(ll.id)
-            list_bicycle.remove(ll)
-
-    return list_relevant, list_bicycle
-
-
 if __name__ == '__main__':
-    main()
+    framework()
