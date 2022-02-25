@@ -4,6 +4,9 @@ import constants
 import logging
 from bssd.core import mutable
 from bssd.core import types
+import bssd
+import osmium
+from bssd.core.types import Member
 logger = logging.getLogger(__name__)
 
 
@@ -160,7 +163,6 @@ class Behavior(BSSD_element):
             element_list.append(self.longBound)
         return element_list
 
-
     def assign_long_ref(self, ref, direction):
         if self.longBound:
             self.longBound.ref_line = ref
@@ -229,31 +231,6 @@ class Boundary_long(BSSD_element):
         return id_str + bdr
 
 
-def create_placeholder(lanelet=None, bdr_agst=None, bdr_alg=None):
-    # Function that calls code to create empty placeholders for all objects that
-    # are necessary for a behavior space in the BSSD.
-    def create_behavior(leftBdr, rightBdr, longBdr):
-        if longBdr:
-            longBound = Boundary_long(longBdr)
-        else:
-            longBound = None
-        return Behavior(Reservation(), longBound, Boundary_lat(leftBdr), Boundary_lat(rightBdr))
-
-    if not lanelet:
-        lB_ll = None
-        rB_ll = None
-        id_ll = None
-    else:
-        lB_ll = lanelet.leftBound
-        rB_ll = lanelet.rightBound
-        id_ll = lanelet.id
-
-    behavior_agst = create_behavior(lB_ll, rB_ll, bdr_agst)
-    behavior_alg = create_behavior(rB_ll, lB_ll, bdr_alg)
-
-    return BehaviorSpace(behavior_agst, behavior_alg, id_ll)
-
-
 # def create_placeholder(lanelet=None, bdr_agst=None, bdr_alg=None):
 #     # Function that calls code to create empty placeholders for all objects that
 #     # are necessary for a behavior space in the BSSD.
@@ -262,11 +239,7 @@ def create_placeholder(lanelet=None, bdr_agst=None, bdr_alg=None):
 #             longBound = Boundary_long(longBdr)
 #         else:
 #             longBound = None
-#         bl_right = mutable.BoundaryLat(rightBdr)
-#
-#         bl_right.boundary.append(('w', rightBdr.id, 'boundary'))
-#         bl_right.
-#         return Behavior(Reservation(), longBound, Boundary_lat(leftBdr), )
+#         return Behavior(Reservation(), longBound, Boundary_lat(leftBdr), Boundary_lat(rightBdr))
 #
 #     if not lanelet:
 #         lB_ll = None
@@ -281,3 +254,43 @@ def create_placeholder(lanelet=None, bdr_agst=None, bdr_alg=None):
 #     behavior_alg = create_behavior(rB_ll, lB_ll, bdr_alg)
 #
 #     return BehaviorSpace(behavior_agst, behavior_alg, id_ll)
+
+
+def create_placeholder(lanelet=None, bdr_agst=None, bdr_alg=None):
+    # Function that calls code to create empty placeholders for all objects that
+    # are necessary for a behavior space in the BSSD.
+
+    if not lanelet:
+        lB_ll = None
+        rB_ll = None
+        id_ll = None
+    else:
+        lB_ll = lanelet.leftBound
+        rB_ll = lanelet.rightBound
+        id_ll = lanelet.id
+
+    behavior_agst = create_behavior(lB_ll, rB_ll, bdr_agst)
+    behavior_alg = create_behavior(rB_ll, lB_ll, bdr_alg)
+
+    behavior_space = mutable.BehaviorSpace()
+    behavior_space.along.append(Member(type='r', ref=behavior_alg.id, role='along'))
+    behavior_space.against.append(Member(type='r', ref=behavior_agst.id, role='along'))
+    behavior_space.lanelet.append(Member(type='r', ref=id_ll, role='along'))
+
+    return behavior_space
+
+
+def create_behavior(leftBdr, rightBdr, longBdr):
+
+    bl_right = mutable.BoundaryLat()
+    bl_right.boundary.append(('w', rightBdr.id, 'boundary'))
+
+    bl_left = mutable.BoundaryLat()
+    bl_left.boundary.append(('w', leftBdr.id, 'boundary'))
+
+    behavior = mutable.Behavior()
+    if longBdr:
+        longBound = mutable.BoundaryLong()
+        longBound.boundary.append(('w', longBdr.id, 'boundary'))
+
+    return behavior

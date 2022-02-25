@@ -108,8 +108,8 @@ def ll_recursion(ll, list_relevant_ll, graph, map_ll, map_bssd, direction=None, 
         # derive abs behavior
         new_bs = create_placeholder(ll, fwd_ls, bwd_ls)
         logger.debug(f'Created Behavior Space {new_bs.id}')
-        new_bs.alongBehavior.assign_long_ref(long_ref_f, 'along')
-        new_bs.againstBehavior.assign_long_ref(long_ref_b, 'against')
+        # new_bs.alongBehavior.assign_long_ref(long_ref_f, 'along')
+        # new_bs.againstBehavior.assign_long_ref(long_ref_b, 'against')
         new_bs = derive_behavior(new_bs, ll, map_ll, graph)
         #new_bs = derive_speed_limit(new_bs, ll, map_ll, graph)
         map_bssd.add(new_bs)

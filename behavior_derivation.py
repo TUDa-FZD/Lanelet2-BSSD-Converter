@@ -13,30 +13,30 @@ def derive_behavior(bs, lanelet, map_lanelet, routing_graph):
     ll_layer = map_lanelet.laneletLayer
     ls_layer = map_lanelet.lineStringLayer
 
-    bs.alongBehavior.tags['speed_limit'] = str(round(traffic_rules.speedLimit(lanelet).speedLimit))
+    bs.along.tags['speed_limit'] = str(round(traffic_rules.speedLimit(lanelet).speedLimit))
 
     bs = derive_behavior_bdr_lat(bs, a_layer, 'left')
     bs = derive_behavior_bdr_lat(bs, a_layer, 'right')
 
-    derive_behavior_bdr_long(bs.alongBehavior, lanelet, routing_graph, ll_layer, ls_layer)
-    derive_behavior_bdr_long(bs.againstBehavior, lanelet, routing_graph, ll_layer, ls_layer)
+    derive_behavior_bdr_long(bs.along, lanelet, routing_graph, ll_layer, ls_layer)
+    derive_behavior_bdr_long(bs.against, lanelet, routing_graph, ll_layer, ls_layer)
 
     return bs
 
 
 def derive_behavior_bdr_lat(behavior_space, area_layer, side):
-    behavior_space.alongBehavior.leftBound.tags['crossing'] = \
-        behavior_space.againstBehavior.rightBound.tags['crossing'] = \
-        distinguish_lat_boundary(behavior_space.alongBehavior.leftBound.lineString.attributes, side)
+    behavior_space.along.leftBound.tags['crossing'] = \
+        behavior_space.against.rightBound.tags['crossing'] = \
+        distinguish_lat_boundary(behavior_space.along.leftBound.lineString.attributes, side)
 
-    area_list = area_layer.findUsages(behavior_space.alongBehavior.leftBound.lineString)
+    area_list = area_layer.findUsages(behavior_space.along.leftBound.lineString)
     parking_only = 'False'
     if any(item.attributes['subtype'] == 'parking' for item in area_list):
         area_id = area_list[0].id
         parking_only = 'True'
 
-    behavior_space.alongBehavior.leftBound.tags['parking_only'] = \
-        behavior_space.againstBehavior.rightBound.tags['parking_only'] = parking_only
+    behavior_space.along.leftBound.tags['parking_only'] = \
+        behavior_space.against.rightBound.tags['parking_only'] = parking_only
 
     return behavior_space
 
