@@ -6,7 +6,7 @@ from lanelet2.geometry import distance as dist
 import math
 from lanelet2.core import LineString3d, getId
 from constants import LONG_BDR_TAGS, LONG_BDR_DICT
-from geometry_derivation import make_orth_bounding_box, find_inside_lines, find_flush_bdr, find_line_insufficient
+from geometry_derivation import make_orth_bounding_box, find_flush_bdr, find_line_insufficient
 from behavior_derivation import distinguish_lat_boundary
 from BSSD_elements import create_placeholder
 logger = logging.getLogger(__name__)
@@ -45,13 +45,14 @@ class data_handler():
         self.relevant_lanelets = [item.id for item in self.map_lanelet.laneletLayer if ll_relevant(item.attributes)]
         self.get_relevant_bicycle_lls()
 
-    def ll_recursion(self, ll, direction=None, ls=None):
+    def ll_recursion(self, ll_id, direction=None, ls=None):
 
+        ll = self.map_lanelet.laneletLayer[ll_id]
         # Remove current lanelet from list of relevant lanelets to keep track which lanelets still have to be done
-        self.relevant_lanelets.remove(ll.id)
+        self.relevant_lanelets.remove(ll_id)
 
         logger.debug(f'-----------------------------------------------')
-        logger.debug(f'Derivation for Lanelet {ll.id}')
+        logger.debug(f'Derivation for Lanelet {ll_id}')
 
         # Perform derivation of behavior space from current lanelet
         # atm only long. boundary
@@ -70,10 +71,10 @@ class data_handler():
         # about already derived boundaries
         for successor in self.graph.following(ll):
             if successor.id in self.relevant_lanelets:
-                self.ll_recursion(successor, 'fwd', bwd_ls)
+                self.ll_recursion(successor.id, 'fwd', bwd_ls)
         for predecessor in self.graph.previous(ll):
             if predecessor.id in self.relevant_lanelets:
-                self.ll_recursion(predecessor, 'bwd', fwd_ls)
+                self.ll_recursion(predecessor.id, 'bwd', fwd_ls)
 
     def find_usages_and_remove_self(self, ll, side):
 
@@ -146,7 +147,7 @@ class data_handler():
             lines['insufficient_half_right'] = find_line_insufficient(lsList_pt_right, pt_right, pt_left)
 
             ### Both sides are not matching
-            lines.update(find_inside_lines(self.map_lanelet.pointLayer, self.map_lanelet.lineStringLayer, pt_left, pt_right))
+            lines.update(self.find_inside_lines(pt_left, pt_right))
 
             # In case multiple linestrings have been found, write an error
             if len([v for k, v in lines.items() if v[0]]) > 1:
