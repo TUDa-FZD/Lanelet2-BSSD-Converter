@@ -65,6 +65,7 @@ def write_bssd_elements(bssd, file):
 
     for layer, layerdict in iter(bssd):
         for id_obj, bssd_object in layerdict.items():
+            # bssd_object.members = [m for m in bssd_object.members]
             writer_bssd.add_relation(bssd_object)
 
     writer_bssd.close()

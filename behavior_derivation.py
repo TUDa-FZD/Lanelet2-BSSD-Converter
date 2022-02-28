@@ -18,25 +18,25 @@ def derive_behavior(bs, lanelet, map_lanelet, routing_graph):
     bs = derive_behavior_bdr_lat(bs, a_layer, 'left')
     bs = derive_behavior_bdr_lat(bs, a_layer, 'right')
 
-    derive_behavior_bdr_long(bs.along, lanelet, routing_graph, ll_layer, ls_layer)
-    derive_behavior_bdr_long(bs.against, lanelet, routing_graph, ll_layer, ls_layer)
+    derive_behavior_bdr_long(bs.alongBehavior, lanelet, routing_graph, ll_layer, ls_layer)
+    derive_behavior_bdr_long(bs.againstBehavior, lanelet, routing_graph, ll_layer, ls_layer)
 
     return bs
 
 
 def derive_behavior_bdr_lat(behavior_space, area_layer, side):
-    behavior_space.along.leftBound.tags['crossing'] = \
-        behavior_space.against.rightBound.tags['crossing'] = \
-        distinguish_lat_boundary(behavior_space.along.leftBound.lineString.attributes, side)
+    behavior_space.alongBehavior.leftBound.tags['crossing'] = \
+        behavior_space.againstBehavior.rightBound.tags['crossing'] = \
+        distinguish_lat_boundary(behavior_space.alongBehavior.leftBound.lineString.attributes, side)
 
-    area_list = area_layer.findUsages(behavior_space.along.leftBound.lineString)
+    area_list = area_layer.findUsages(behavior_space.alongBehavior.leftBound.lineString)
     parking_only = 'False'
     if any(item.attributes['subtype'] == 'parking' for item in area_list):
         area_id = area_list[0].id
         parking_only = 'True'
 
-    behavior_space.along.leftBound.tags['parking_only'] = \
-        behavior_space.against.rightBound.tags['parking_only'] = parking_only
+    behavior_space.alongBehavior.leftBound.tags['parking_only'] = \
+        behavior_space.againstBehavior.rightBound.tags['parking_only'] = parking_only
 
     return behavior_space
 
@@ -59,15 +59,64 @@ def derive_behavior_bdr_long(behavior, ll, graph, ll_layer, ls_layer):
     return
 
 
-def derive_segment_speed_limit(ll, map_ll):
+def derive_segment_speed_limit(lanelet, map_ll):
     ll_layer = map_ll.laneletLayer
-    own_direction = find_adjacent(ll_layer, ll)
+    a_layer = map_ll.areaLayer
+    own_direction = find_adjacent(ll_layer, lanelet)
     for ll in own_direction:
-        other_direction = ll_layer.findUsages(ll.leftBound)
-        if other_direction and other_direction[0].attributes['type'] not in constants.SEPARATION_TAGS:
-            other_direction = find_adjacent(ll_layer, other_direction[0])
-            break
+        other_direction = ll_layer.findUsages(ll.leftBound.invert())
+        neighbor_areas = a_layer.findUsages(ll.leftBound)
+        if other_direction:
+            if other_direction[0].attributes['type'] not in constants.SEPARATION_TAGS:
+                other_direction = find_adjacent(ll_layer, other_direction[0])
+                break
+            else:
+                # driving directions are structurally separated
+                break
+        elif neighbor_areas:
+            if len(neighbor_areas) > 1:
+                logger.warning(f'For lanelet {ll.id}: Multiple adjacent areas have been found.'
+                               f' No distinct derivation of driving directions possible')
+            ls_of_area = [ls for ls in neighbor_areas[0].outerBound]
+            ls_of_area.remove(ll.leftBound)
+            for ls in ls_of_area:
+                lls = ll_layer.findUsages(ls)
+                break
 
+    pass
+
+
+def neighbor_next_to_area(ll, map_ll):
+    a_layer = map_ll.areaLayer
+    ll_layer = map_ll.laneletLayer
+    neighbor_areas = set.union(set(a_layer.findUsages(ll.leftBound)), set(a_layer.findUsages(ll.leftBound.invert())))
+    if len(neighbor_areas) > 1:
+        logger.warning(f'For lanelet {ll.id}: Multiple adjacent areas have been found.'
+                       f' No distinct derivation of driving directions possible')
+    if neighbor_areas:
+        surrounding_lanelets = []
+        ls_of_area = [ls for ls in neighbor_areas[0].outerBound]
+        ls_of_area.remove(ll.leftBound)
+        ls_of_area.remove(ll.leftBound.invert())
+        for ls in ls_of_area:
+            surrounding_lanelets = surrounding_lanelets + ll_layer.findUsages(ls)
+            surrounding_lanelets = surrounding_lanelets + ll_layer.findUsages(ls.invert())
+        surrounding_lanelets = [ll for ll in surrounding_lanelets if ll_relevant(ll.attributes)]
+
+        if len(surrounding_lanelets) > 1:
+            logger.warning(f'For area {neighbor_areas[0].id}: Multiple adjacent lanelets have been found.'
+                           f' No distinct derivation of driving directions possible')
+
+        if len(surrounding_lanelets) == 0:
+            return None
+        else:
+            if surrounding_lanelets[0].rightBound in neighbor_areas[0]:
+                pass
+
+            return surrounding_lanelets
+    return []
+
+def opposite_direction():
     pass
 
 

@@ -68,9 +68,9 @@ def get_relevant_bicycle_lls(ll_layer, list_relevant):
     return list_relevant, list_bicycle
 
 
-def assign_long_ref_line(behavior, ref):
-    if behavior.longBound:
-        behavior.longBound.ref_line = ref
+# def assign_long_ref_line(behavior, ref):
+#     if behavior.longBound:
+#         behavior.longBound.ref_line = ref
 
 
 def find_usages_and_remove_self(ll_layer, ll, side):

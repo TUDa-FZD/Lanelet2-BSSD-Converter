@@ -41,7 +41,7 @@ def framework():
     # ----------- INPUT --------------
     # Load example file from lanelet2
     # filename = args.filename
-    filename = "res/aseag.osm"
+    filename = "res/DA_Nieder-Ramst-Mühlstr-Hochstr.osm"
     example_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     pos_ids_file_path = "/home/jannik/Documents/WS_Lanelet2/src/lanelet2/lanelet2_python/scripts/make_ids_positive.py"
     os.system(f"python3 {pos_ids_file_path} -i {example_file}")
@@ -94,31 +94,32 @@ def framework():
 
 def ll_recursion(ll, list_relevant_ll, graph, map_ll, map_bssd, direction=None, ls=None):
 
-    if ll.id in list_relevant_ll:
-        # Remove current lanelet from list of relevant lanelets to keep track which lanelets still have to be done
-        list_relevant_ll.remove(ll.id)
+    # Remove current lanelet from list of relevant lanelets to keep track which lanelets still have to be done
+    list_relevant_ll.remove(ll.id)
 
-        logger.debug(f'-----------------------------------------------')
-        logger.debug(f'Derivation for Lanelet {ll.id}')
+    logger.debug(f'-----------------------------------------------')
+    logger.debug(f'Derivation for Lanelet {ll.id}')
 
-        # Perform derivation of behavior space from current lanelet
-        # atm only long. boundary
-        map_ll, fwd_ls, long_ref_f = get_long_bdr(map_ll, ll.leftBound[0], ll.rightBound[0], 'fwd' == direction, ls)
-        map_ll, bwd_ls, long_ref_b = get_long_bdr(map_ll, ll.leftBound[-1], ll.rightBound[-1], 'bwd' == direction, ls)
-        # derive abs behavior
-        new_bs = create_placeholder(ll, fwd_ls, bwd_ls)
-        logger.debug(f'Created Behavior Space {new_bs.id}')
-        # new_bs.alongBehavior.assign_long_ref(long_ref_f, 'along')
-        # new_bs.againstBehavior.assign_long_ref(long_ref_b, 'against')
-        new_bs = derive_behavior(new_bs, ll, map_ll, graph)
-        #new_bs = derive_speed_limit(new_bs, ll, map_ll, graph)
-        map_bssd.add(new_bs)
+    # Perform derivation of behavior space from current lanelet
+    # atm only long. boundary
+    map_ll, fwd_ls, long_ref_f = get_long_bdr(map_ll, ll.leftBound[0], ll.rightBound[0], 'fwd' == direction, ls)
+    map_ll, bwd_ls, long_ref_b = get_long_bdr(map_ll, ll.leftBound[-1], ll.rightBound[-1], 'bwd' == direction, ls)
+    # derive abs behavior
+    new_bs = create_placeholder(ll, fwd_ls, bwd_ls)
+    logger.debug(f'Created Behavior Space {new_bs.id}')
+    # new_bs.alongBehavior.assign_long_ref(long_ref_f, 'along')
+    # new_bs.againstBehavior.assign_long_ref(long_ref_b, 'against')
+    new_bs = derive_behavior(new_bs, ll, map_ll, graph)
+    #new_bs = derive_speed_limit(new_bs, ll, map_ll, graph)
+    map_bssd.add(new_bs)
 
-        # Call function in itself for the succeeding and preceding lanelet(s) and hand over information
-        # about already derived boundaries
-        for successor in graph.following(ll):
+    # Call function in itself for the succeeding and preceding lanelet(s) and hand over information
+    # about already derived boundaries
+    for successor in graph.following(ll):
+        if successor.id in list_relevant_ll:
             map_bssd, list_relevant_ll = ll_recursion(successor, list_relevant_ll, graph, map_ll, map_bssd, 'fwd', bwd_ls)
-        for predecessor in graph.previous(ll):
+    for predecessor in graph.previous(ll):
+        if predecessor.id in list_relevant_ll:
             map_bssd, list_relevant_ll = ll_recursion(predecessor,  list_relevant_ll, graph, map_ll, map_bssd, 'bwd', fwd_ls)
             
     return map_bssd, list_relevant_ll
