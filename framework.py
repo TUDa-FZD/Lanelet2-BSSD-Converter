@@ -33,11 +33,14 @@ def framework():
     # ----------- INPUT --------------
     # Load example file from lanelet2
     # filename = args.filename
-    filename = "res/DA_Nieder-Ramst-Mühlstr-Hochstr.osm"
+    filename = "res/mapping_example.osm"
     example_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     pos_ids_file_path = "/home/jannik/Documents/WS_Lanelet2/src/lanelet2/lanelet2_python/scripts/make_ids_positive.py"
     os.system(f"python3 {pos_ids_file_path} -i {example_file}")
-    map_ll = io_data.load_map(example_file)
+
+    io = io_data.io_handler(example_file)
+    map_ll = io.load_map()
+    orig_nr_ls = len(map_ll.lineStringLayer)
 
     logger.info(f'File {filename} loaded successfully')
 
@@ -48,15 +51,10 @@ def framework():
     logger.info(f'Start preprocessing. Finding relevant lanelets and distinguishing bicycle_lanes')
     handler = data_handler(map_ll)
     handler.find_relevant_lanelets()
-
-    logger.info(f'Determined relevant lanelets')
-
     handler.get_RoutingGraph_all()
-
-    logger.info(f'RoutingGraph for all lanelets created')
-
     end = time.perf_counter()
-    logger.info(f"Preprocessing done. Elapsed time: {round(end - start, 2)}")
+    logger.info(f"Preprocessing done, relevant lanelets detected and RoutingGraph created."
+                f"\nElapsed time: {round(end - start, 2)}")
 
     # ----------- PROCESSING --------------
     # Recursively loop through all lanelets to perform desired actions for each (e.g. derive long. boundary)
@@ -65,20 +63,26 @@ def framework():
     while handler.relevant_lanelets:
         handler.ll_recursion(handler.relevant_lanelets[0])
     end = time.perf_counter()
-    logger.info(f"Loop for relevant lanelets completed. Elapsed time: {round(end - start, 2)}")
+    logger.info(f"Loop for relevant lanelets completed.\nElapsed time: {round(end - start, 2)}")
+    logger.info(f"\n------ Statistics ------"
+                f"\nBehavior Spaces: {len(handler.map_bssd.BehaviorSpaceLayer)}"
+                f"\nBehaviors:       {len(handler.map_bssd.BehaviorLayer)}"
+                f"\nBoundary Lat:    {len(handler.map_bssd.BoundaryLatLayer)}"
+                f"\nBoundary Long:   {len(handler.map_bssd.BoundaryLongLayer)}"
+                f"\nReservations:    {len(handler.map_bssd.ReservationLayer)}"
+                f"\nNew Linestrings: {len(handler.map_lanelet.lineStringLayer) - orig_nr_ls}"
+                f"\n------------------------")
 
     # ----------- OUTPUT --------------
     # Save edited .osm-map to desired file
     start = time.perf_counter()
-    file1 = "map_ll.osm"
-    file2 = "map_bssd.osm"
-    io_data.save_map(handler.map_lanelet, file1)
 
-    io_data.write_bssd_elements(handler.map_bssd, file2)
-    io_data.merge_files(file1, file2, filename[3:])
+    io.save_map(handler.map_lanelet)
+    io.write_bssd_elements(handler.map_bssd)
+    io.merge_files(filename[3:])
     end = time.perf_counter()
-    logger.info(f'Saved map {filename[3:]} with BSSD extension in output directory\
-                Elapsed time: {round(end - start, 2)}')
+    logger.info(f'Saved map {filename[3:]} with BSSD extension in output directory. '
+                f'\nElapsed time: {round(end - start, 2)}')
 
 
 if __name__ == '__main__':

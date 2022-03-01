@@ -2,93 +2,92 @@ import os
 import osmium
 import lanelet2
 from lanelet2.projection import UtmProjector
+import tempfile as tf
+from BSSD_elements import BoundaryLat
 
 
-def load_map(path, origin_coordinates=None):
-    # Load a Lanelet2-map from a given file and creating a map and graph for storing its data in variables.
+class io_handler():
 
-    if origin_coordinates is None:
-        origin_coordinates = [49, 8.4]
-    projector = UtmProjector(lanelet2.io.Origin(origin_coordinates[0], origin_coordinates[1]))
-    map_ll = lanelet2.io.load(path, projector)
-
-    return map_ll
-
-
-def get_RoutingGraph(map_lanelet):
-
-    traffic_rules = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
-                                                  lanelet2.traffic_rules.Participants.Vehicle)
-    graph = lanelet2.routing.RoutingGraph(map_lanelet, traffic_rules)
-
-    return graph
-
-
-def get_RoutingGraph_all(map_lanelet):
-    traffic_rules = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
-                                                  lanelet2.traffic_rules.Participants.Vehicle)
-    edited = {}
-
-    for ll in map_lanelet.laneletLayer:
-        if not traffic_rules.canPass(ll):
-            if 'participant:vehicle' in ll.attributes:
-                edited[ll] = ll.attributes['participant:vehicle']
-            else:
-                edited[ll] = None
-            ll.attributes['participant:vehicle'] = 'yes'
-
-    graph = lanelet2.routing.RoutingGraph(map_lanelet, traffic_rules)
-
-    for ll, value in edited.items():
-        if value:
-            ll.attributes['participant:vehicle'] = value
+    def __init__(self, path, origin_coordinates=None):
+        self.input_path = path
+        if origin_coordinates:
+            self.origin_coordinates = origin_coordinates
         else:
-            del ll.attributes['participant:vehicle']
+            self.autodetect_coordinates()
+        self.projector = UtmProjector(lanelet2.io.Origin(self.origin_coordinates[0], self.origin_coordinates[1]))
 
-    return graph
+        self._tmp_dir = tf.TemporaryDirectory()
+        self._tmp_ll_file = os.path.join(self._tmp_dir.name, "ll2.osm")
+        self._tmp_bssd_file = os.path.join(self._tmp_dir.name, "bssd.osm")
 
+        print(self._tmp_dir.name)
 
+    def load_map(self):
+        # Load a Lanelet2-map from a given file and creating a map and graph for storing its data in variables.
+        return lanelet2.io.load(self.input_path, self.projector)
 
-def save_map(map_ll, file_path, origin_coordinates=None):
-    if origin_coordinates is None:
-        origin_coordinates = [49, 8.4]
+    def autodetect_coordinates(self):
 
-    projector = UtmProjector(lanelet2.io.Origin(origin_coordinates[0], origin_coordinates[1]))
-    lanelet2.io.write(file_path, map_ll, projector)
+        coordinates = []
+        with open(self.input_path) as fp:
+            for line in fp.readlines():
+                if 'lat=\'' in line and 'lon=\'' in line:
+                    coordinates.append(float(line.split("lat=\'", 1)[1].split('\'', 1)[0]))
+                    coordinates.append(float(line.split("lon=\'", 1)[1].split('\'', 1)[0]))
+                    break
+                elif 'lat=\"' in line and 'lon=\"' in line:
+                    coordinates.append(float(line.split("lat=\"", 1)[1].split('\"', 1)[0]))
+                    coordinates.append(float(line.split("lon=\"", 1)[1].split('\"', 1)[0]))
+                    break
+        self.origin_coordinates = [round(num, 2) for num in coordinates]
 
+    def get_RoutingGraph(self, map_lanelet):
 
-def write_bssd_elements(bssd, file):
-    if os.path.isfile(file):
-        os.remove(file)
+        traffic_rules = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
+                                                      lanelet2.traffic_rules.Participants.Vehicle)
+        graph = lanelet2.routing.RoutingGraph(map_lanelet, traffic_rules)
 
-    writer_bssd = osmium.SimpleWriter(file)
+        return graph
 
-    for layer, layerdict in iter(bssd):
-        for id_obj, bssd_object in layerdict.items():
-            # bssd_object.members = [m for m in bssd_object.members]
-            writer_bssd.add_relation(bssd_object)
+    def save_map(self, map_ll, file_path=None):
+        if not file_path:
+            file_path = self._tmp_ll_file
+        lanelet2.io.write(file_path, map_ll, self.projector)
 
-    writer_bssd.close()
+    def write_bssd_elements(self, bssd, file=None):
 
+        if not file:
+            file = self._tmp_bssd_file
 
-def merge_files(file1, file2, file3='output.osm'):
-    data = data2 = ""
-    path_output = 'Output/' + file3[:-4] + '_BSSD.osm'
+        writer_bssd = osmium.SimpleWriter(file)
 
-    # Reading data from Lanelet2 file and deleting the file afterwards
-    with open(file1) as fp:
-        data = fp.readlines()[:-1]
-    os.remove(file1)
+        for layer, layerdict in iter(bssd):
+            for id_obj, bssd_object in layerdict.items():
+                # if isinstance(bssd_object, BoundaryLat) and bssd_object.crossing and bssd_object.tags['crossing'] == None:
+                #     pass
+                # else:
+                writer_bssd.add_relation(bssd_object.to_osmium())
 
-    # Reading data from BSSD file and deleting the file afterwards
-    with open(file2) as fp:
-        data2 = fp.readlines()[2:]
-    os.remove(file2)
+        writer_bssd.close()
 
-    # Merging both files
-    data += data2
+    def merge_files(self, file_final='output.osm'):
+        data = data2 = ""
+        path_output = 'Output/' + file_final[:-4] + '_BSSD.osm'
 
-    if os.path.isfile(path_output):
-        os.remove(path_output)
-    with open(path_output, 'w') as fp:
-        fp.writelines(data)
+        # Reading data from Lanelet2 file and deleting the file afterwards
+        with open(self._tmp_ll_file) as fp:
+            data = fp.readlines()[:-1]
+        os.remove(self._tmp_ll_file)
+
+        # Reading data from BSSD file and deleting the file afterwards
+        with open(self._tmp_bssd_file) as fp:
+            data2 = fp.readlines()[2:]
+        os.remove(self._tmp_bssd_file)
+
+        # Merging both files
+        data += data2
+
+        if os.path.isfile(path_output):
+            os.remove(path_output)
+        with open(path_output, 'w') as fp:
+            fp.writelines(data)

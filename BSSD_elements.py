@@ -3,10 +3,9 @@ from lanelet2.core import AttributeMap, TrafficLight, Lanelet, LineString3d, Poi
 import constants
 import logging
 from bssd.core import mutable
-from bssd.core import types
 import bssd
 import osmium
-from bssd.core.types import Member
+from bssd.core._types import CrossingType as ct
 logger = logging.getLogger(__name__)
 
 
@@ -28,26 +27,49 @@ class bssdClass:
         # to the respective layer of the BSSD map. Furthermore it looks for all subclasses
         # and adds them to their respective classe, too.
 
-        def get_all_subelements(cls):
-            all_subelements = [cls]
+        if isinstance(bssdObject, BehaviorSpace):
+            self.BehaviorSpaceLayer[bssdObject.id] = bssdObject
+        elif isinstance(bssdObject, Behavior):
+            self.BehaviorLayer[bssdObject.id] = bssdObject
+        elif isinstance(bssdObject, Reservation):
+            self.ReservationLayer[bssdObject.id] = bssdObject
+        elif isinstance(bssdObject, BoundaryLat):
+            self.BoundaryLatLayer[bssdObject.id] = bssdObject
+        elif isinstance(bssdObject, BoundaryLong):
+            self.BoundaryLongLayer[bssdObject.id] = bssdObject
+        else:
+            logger.warning(f'Non-BSSD-Object (ID: {bssdObject.id}) attempted to add to map_bssd')
 
-            for subelement in cls.get_subelements():
-                all_subelements.append(subelement)
-                all_subelements.extend(get_all_subelements(subelement))
+        return bssdObject
 
-            return all_subelements
+    def create_placeholder(self, lanelet=None, bdr_agst=None, bdr_alg=None):
+        # Function that calls code to create empty placeholders for all objects that
+        # are necessary for a behavior space in the BSSD.
 
-        for bssd_class in get_all_subelements(bssdObject):
-            if isinstance(bssd_class, BehaviorSpace):
-                self.BehaviorSpaceLayer[bssd_class.id] = bssd_class
-            elif isinstance(bssd_class, Behavior):
-                self.BehaviorLayer[bssd_class.id] = bssd_class
-            elif isinstance(bssd_class, Reservation):
-                self.ReservationLayer[bssd_class.id] = bssd_class
-            elif isinstance(bssd_class, BoundaryLat):
-                self.BoundaryLatLayer[bssd_class.id] = bssd_class
-            elif isinstance(bssd_class, BoundaryLong):
-                self.BoundaryLongLayer[bssd_class.id] = bssd_class
+        if not lanelet:
+            lB_ll = None
+            rB_ll = None
+        else:
+            lB_ll = lanelet.leftBound
+            rB_ll = lanelet.rightBound
+
+        behavior_agst = self.add(self.create_behavior(lB_ll, rB_ll, bdr_agst))
+        behavior_alg = self.add(self.create_behavior(rB_ll, lB_ll, bdr_alg))
+
+        return self.add(BehaviorSpace(b_agst=behavior_agst, b_alg=behavior_alg, ll=lanelet))
+
+    def create_behavior(self, leftBdr, rightBdr, longBdr):
+
+        b_right = self.add(BoundaryLat(rightBdr))
+        b_left = self.add(BoundaryLat(leftBdr))
+        res = self.add(Reservation())
+
+        if longBdr:
+            b_long = self.add(BoundaryLong(longBdr))
+        else:
+            b_long = None
+
+        return Behavior(bdr_left=b_left, bdr_right=b_right, bdr_long=b_long, res=res)
 
 
 class BSSD_element():
@@ -67,23 +89,24 @@ class BSSD_element():
             return False
         return self.tags == other.tags
 
-    def get_subelements(self):
-        return []
 
+class BehaviorSpace(mutable.BehaviorSpace):
 
-class BehaviorSpace(BSSD_element):
-
-    def __init__(self, b_agst, b_alg, ll=None):
+    def __init__(self, b_agst=None, b_alg=None, ll=None, bssd_map=None):
         super().__init__()
-        self.alongBehavior = b_agst
-        self.againstBehavior = b_alg
-        self.ref_lanelet = ll
-        self.tags = {'type': 'behavior_space', 'subtype': 'along'}
-        self.members = [('r', self.alongBehavior.id, 'along'),
-                        ('r', self.againstBehavior.id, 'against')]
+        self.alongBehavior = None
+        self.againstBehavior = None
+        self.ref_lanelet = None
+        set_initial_values(self)
+
+        if b_agst:
+            self.assign_agst(b_agst)
+
+        if b_alg:
+            self.assign_along(b_alg)
 
         if ll:
-            self.members.append(('r', ll, 'ref_lanelet'))
+            self.assign_lanelet(ll)
 
     def __str__(self):
         # Print ID and Behavior ID for agst and alg
@@ -103,41 +126,42 @@ class BehaviorSpace(BSSD_element):
             return False
         return self.tags == other.tags
 
-    def __add__(self, other):
-        # Function for joining two behavior spaces
+    def assign_along(self, bhvr):
+        self.alongBehavior = bhvr
+        self.add_along(bhvr.id)
 
-        # 1. Replace long Boundary of self by longBoundary of other
+    def assign_agst(self, bhvr):
+        self.againstBehavior = bhvr
+        self.add_against(bhvr.id)
 
-        # 2. Create new linestrings by concatenate linestrings from left/right boundary
-
-        # 3. Assign new lateral boundaries to self.Behavior.leftBoundary/rightBoundary
-
-        # 4. Reference both underlying lanelets
-
-        # 5. Kill instances of other (including Behaviors and boundaries)
-        pass
-
-    def get_subelements(self):
-        return [self.alongBehavior, self.againstBehavior]
+    def assign_lanelet(self, ll):
+        self.ref_lanelet = ll
+        self.add_lanelet(ll.id)
 
 
-class Behavior(BSSD_element):
+class Behavior(mutable.Behavior):
 
-    def __init__(self, res, bdr_long, bdr_left, bdr_right):
+    def __init__(self, res=None, bdr_long=None, bdr_left=None, bdr_right=None):
         super().__init__()
-        self.reservation = res
-        self.longBound = bdr_long
-        self.leftBound = bdr_left
-        self.rightBound = bdr_right
-        self.tags.update(constants.BEHAVIOR_TAGS)
+        self.reservation = []
+        self.longBound = None
+        self.leftBound = None
+        self.rightBound = None
+        set_initial_values(self)
         # Todo: Give an option for multiple reservation instances
-        self.members = [('r', self.reservation.id, 'reservation'),
-                        ('r', self.leftBound.id, 'boundary_left'),
-                        ('r', self.rightBound.id, 'boundary_right')
-                        ]
+
+        if res:
+            self.assign_reservation(res)
 
         if bdr_long:
-            self.members.append(('r', self.longBound.id, 'boundary_long'))
+            self.assign_long_boundary(bdr_long)
+
+        if bdr_left:
+            self.assign_left_boundary(bdr_left)
+
+        if bdr_right:
+            self.assign_right_boundary(bdr_right)
+
 
     def __str__(self):
         # Print ID and
@@ -157,24 +181,33 @@ class Behavior(BSSD_element):
             return False
         return self.tags == other.tags
 
-    def get_subelements(self):
-        element_list = [self.reservation, self.leftBound, self.rightBound]
-        if self.longBound:
-            element_list.append(self.longBound)
-        return element_list
-
     def assign_long_ref(self, ref, direction):
         if self.longBound:
             self.longBound.ref_line = ref
             #logger.debug(f'Behavior {self.id} ({direction}) long ref: {ref}')
 
+    def assign_left_boundary(self, bound):
+        self.leftBound = bound
+        self.add_boundary_left(bound.id)
 
-class Reservation(BSSD_element):
+    def assign_right_boundary(self, bound):
+        self.rightBound = bound
+        self.add_boundary_right(bound.id)
+
+    def assign_long_boundary(self, bound):
+        self.longBound = bound
+        self.add_boundary_long(bound.id)
+
+    def assign_reservation(self, res):
+        self.reservation.append(res)
+        self.add_reservation(res.id)
+
+
+class Reservation(mutable.Reservation):
 
     def __init__(self):
         super().__init__()
-        # self.id_b = id_b
-        self.tags.update(constants.RESERVATION_TAGS)
+        set_initial_values(self)
 
     def __str__(self):
         # Print ID and
@@ -185,17 +218,15 @@ class Reservation(BSSD_element):
         return id_str + b
 
 
-class BoundaryLat(BSSD_element):
+class BoundaryLat(mutable.BoundaryLat):
 
     def __init__(self, bdr=None):
         super().__init__()
-        self.lineString = bdr
-        self.tags.update(constants.BOUNDARY_LAT_TAGS)
-
+        self.lineString = None
+        set_initial_values(self)
+        self.crossing = ct.NONE
         if bdr:
-            self.members = [('w', self.lineString.id, 'boundary')]
-        else:
-            self.members = [('w', -1, 'boundary')]
+            self.assign_ls(bdr)
 
     def __str__(self):
         # Print ID and
@@ -204,46 +235,65 @@ class BoundaryLat(BSSD_element):
 
         return id_str + bdr
 
+    def assign_ls(self, ls):
+        self.lineString = ls
+        self.add_boundary(ls.id)
 
-class BoundaryLong(BSSD_element):
+
+class BoundaryLong(mutable.BoundaryLong):
 
     def __init__(self, bdr=None):
         super().__init__()
-        self.lineString = bdr
-        self.tags.update(constants.BOUNDARY_LONG_TAGS)
+        self.lineString = None
         self.ref_line = None
+        set_initial_values(self)
 
         if bdr:
-            self.members = [('w', self.lineString.id, 'boundary')]
-        else:
-            self.members = [('w', -1, 'boundary')]
+            self.assign_ls(bdr)
 
     def __str__(self):
         # Print ID and
         id_str = 'id: ' + str(self.id)
         bdr = ', id linestring: ' + str(self.lineString.id)
 
+    def assign_ls(self, ls):
+        self.lineString = ls
+        self.add_boundary(ls.id)
 
-def create_placeholder(lanelet=None, bdr_agst=None, bdr_alg=None):
-    # Function that calls code to create empty placeholders for all objects that
-    # are necessary for a behavior space in the BSSD.
-    def create_behavior(leftBdr, rightBdr, longBdr):
-        if longBdr:
-            longBound = BoundaryLong(longBdr)
-        else:
-            longBound = None
-        return Behavior(Reservation(), longBound, BoundaryLat(leftBdr), BoundaryLat(rightBdr))
 
-    if not lanelet:
-        lB_ll = None
-        rB_ll = None
-        id_ll = None
-    else:
-        lB_ll = lanelet.leftBound
-        rB_ll = lanelet.rightBound
-        id_ll = lanelet.id
+# def create_placeholder(lanelet=None, bdr_agst=None, bdr_alg=None):
+#     # Function that calls code to create empty placeholders for all objects that
+#     # are necessary for a behavior space in the BSSD.
+#
+#     if not lanelet:
+#         lB_ll = None
+#         rB_ll = None
+#     else:
+#         lB_ll = lanelet.leftBound
+#         rB_ll = lanelet.rightBound
+#
+#     behavior_agst = create_behavior(lB_ll, rB_ll, bdr_agst)
+#     behavior_alg = create_behavior(rB_ll, lB_ll, bdr_alg)
+#
+#     return BehaviorSpace(b_agst=behavior_agst, b_alg=behavior_alg, ll=lanelet)
+#
+#
+# def create_behavior(leftBdr, rightBdr, longBdr):
+#
+#     b_right = BoundaryLat(rightBdr)
+#     b_left = BoundaryLat(leftBdr)
+#     res = Reservation()
+#
+#     if longBdr:
+#         b_long = BoundaryLong(longBdr)
+#     else:
+#         b_long = None
+#
+#     return Behavior(bdr_left=b_left, bdr_right=b_right, bdr_long=b_long, res=res)
 
-    behavior_agst = create_behavior(lB_ll, rB_ll, bdr_agst)
-    behavior_alg = create_behavior(rB_ll, lB_ll, bdr_alg)
 
-    return BehaviorSpace(behavior_agst, behavior_alg, id_ll)
+def set_initial_values(rel):
+    rel.id = getId()
+    rel.visible = True
+    rel.version = 1
+
