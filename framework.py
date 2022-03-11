@@ -2,21 +2,8 @@ import os
 import time
 import io_data
 from data_handler import data_handler
-import logging
 import argparse
-
-
-logging.basicConfig(filename='derivation.log',
-                    level=logging.DEBUG,
-                    filemode='w',
-                    format='[%(asctime)s] %(levelname)s %(message)s')
-logger = logging.getLogger(__name__)
-stream = logging.StreamHandler()
-stream.setLevel(logging.INFO)
-streamformat = logging.Formatter("%(levelname)s:%(message)s")
-stream.setFormatter(streamformat)
-
-logger.addHandler(stream)
+from util import edit_log_file, setup_logger
 
 
 def main():
@@ -33,7 +20,10 @@ def framework():
     # ----------- INPUT --------------
     # Load example file from lanelet2
     # filename = args.filename
-    filename = "res/mapping_example.osm"
+    filename = "res/DA_Nieder-Ramst-Mühlstr-Hochstr.osm"
+
+    logger, log_file = setup_logger(filename)
+
     example_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     pos_ids_file_path = "/home/jannik/Documents/WS_Lanelet2/src/lanelet2/lanelet2_python/scripts/make_ids_positive.py"
     os.system(f"python3 {pos_ids_file_path} -i {example_file}")
@@ -53,7 +43,7 @@ def framework():
     handler.find_relevant_lanelets()
     handler.get_RoutingGraph_all()
     end = time.perf_counter()
-    logger.info(f"Preprocessing done, relevant lanelets detected and RoutingGraph created."
+    logger.info(f"Preprocessing completed, relevant lanelets detected and RoutingGraph created."
                 f"\nElapsed time: {round(end - start, 2)}")
 
     # ----------- PROCESSING --------------
@@ -64,14 +54,6 @@ def framework():
         handler.ll_recursion(handler.relevant_lanelets[0])
     end = time.perf_counter()
     logger.info(f"Loop for relevant lanelets completed.\nElapsed time: {round(end - start, 2)}")
-    logger.info(f"\n------ Statistics ------"
-                f"\nBehavior Spaces: {len(handler.map_bssd.BehaviorSpaceLayer)}"
-                f"\nBehaviors:       {len(handler.map_bssd.BehaviorLayer)}"
-                f"\nBoundary Lat:    {len(handler.map_bssd.BoundaryLatLayer)}"
-                f"\nBoundary Long:   {len(handler.map_bssd.BoundaryLongLayer)}"
-                f"\nReservations:    {len(handler.map_bssd.ReservationLayer)}"
-                f"\nNew Linestrings: {len(handler.map_lanelet.lineStringLayer) - orig_nr_ls}"
-                f"\n------------------------")
 
     # ----------- OUTPUT --------------
     # Save edited .osm-map to desired file
@@ -83,6 +65,20 @@ def framework():
     end = time.perf_counter()
     logger.info(f'Saved map {filename[3:]} with BSSD extension in output directory. '
                 f'\nElapsed time: {round(end - start, 2)}')
+    lc = logger.handlers[0].levelcount
+    logger.info(f"\n------ Statistics ------"
+                f"\nBehavior Spaces: {len(handler.map_bssd.BehaviorSpaceLayer)}"
+                f"\nBehaviors:       {len(handler.map_bssd.BehaviorLayer)}"
+                f"\nBoundary Lat:    {len(handler.map_bssd.BoundaryLatLayer)}"
+                f"\nBoundary Long:   {len(handler.map_bssd.BoundaryLongLayer)}"
+                f"\nReservations:    {len(handler.map_bssd.ReservationLayer)}"
+                f"\nNew Linestrings: {len(handler.map_lanelet.lineStringLayer) - orig_nr_ls}"
+                f"\nWarnings:        {lc['WARNING']}"
+                f"\nCritical Logs:   {lc['CRITICAL']}"
+                f"\nErrors:          {lc['ERROR']}"
+                f"\n------------------------")
+
+    edit_log_file(log_file)
 
 
 if __name__ == '__main__':

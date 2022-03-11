@@ -3,7 +3,6 @@ import osmium
 import lanelet2
 from lanelet2.projection import UtmProjector
 import tempfile as tf
-from BSSD_elements import BoundaryLat
 
 
 class io_handler():
@@ -19,8 +18,6 @@ class io_handler():
         self._tmp_dir = tf.TemporaryDirectory()
         self._tmp_ll_file = os.path.join(self._tmp_dir.name, "ll2.osm")
         self._tmp_bssd_file = os.path.join(self._tmp_dir.name, "bssd.osm")
-
-        print(self._tmp_dir.name)
 
     def load_map(self):
         # Load a Lanelet2-map from a given file and creating a map and graph for storing its data in variables.
@@ -39,7 +36,8 @@ class io_handler():
                     coordinates.append(float(line.split("lat=\"", 1)[1].split('\"', 1)[0]))
                     coordinates.append(float(line.split("lon=\"", 1)[1].split('\"', 1)[0]))
                     break
-        self.origin_coordinates = [round(num, 2) for num in coordinates]
+        # self.origin_coordinates = [round(num, 2) for num in coordinates]
+        self.origin_coordinates = coordinates
 
     def get_RoutingGraph(self, map_lanelet):
 
@@ -63,10 +61,7 @@ class io_handler():
 
         for layer, layerdict in iter(bssd):
             for id_obj, bssd_object in layerdict.items():
-                # if isinstance(bssd_object, BoundaryLat) and bssd_object.crossing and bssd_object.tags['crossing'] == None:
-                #     pass
-                # else:
-                writer_bssd.add_relation(bssd_object.to_osmium())
+                writer_bssd.add_relation(bssd_object.get_osmium())
 
         writer_bssd.close()
 
@@ -77,12 +72,10 @@ class io_handler():
         # Reading data from Lanelet2 file and deleting the file afterwards
         with open(self._tmp_ll_file) as fp:
             data = fp.readlines()[:-1]
-        os.remove(self._tmp_ll_file)
 
         # Reading data from BSSD file and deleting the file afterwards
         with open(self._tmp_bssd_file) as fp:
             data2 = fp.readlines()[2:]
-        os.remove(self._tmp_bssd_file)
 
         # Merging both files
         data += data2

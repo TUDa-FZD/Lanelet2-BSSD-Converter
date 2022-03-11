@@ -92,7 +92,7 @@ class BSSD_element():
 
 class BehaviorSpace(mutable.BehaviorSpace):
 
-    def __init__(self, b_agst=None, b_alg=None, ll=None, bssd_map=None):
+    def __init__(self, b_agst=None, b_alg=None, ll=None):
         super().__init__()
         self.alongBehavior = None
         self.againstBehavior = None
@@ -143,7 +143,7 @@ class Behavior(mutable.Behavior):
 
     def __init__(self, res=None, bdr_long=None, bdr_left=None, bdr_right=None):
         super().__init__()
-        self.reservation = []
+        self.reservation_sub = []
         self.longBound = None
         self.leftBound = None
         self.rightBound = None
@@ -199,7 +199,7 @@ class Behavior(mutable.Behavior):
         self.add_boundary_long(bound.id)
 
     def assign_reservation(self, res):
-        self.reservation.append(res)
+        self.reservation_sub.append(res)
         self.add_reservation(res.id)
 
 
@@ -224,7 +224,7 @@ class BoundaryLat(mutable.BoundaryLat):
         super().__init__()
         self.lineString = None
         set_initial_values(self)
-        self.crossing = ct.NONE
+        #self.crossing = ct.PROHIBITED
         if bdr:
             self.assign_ls(bdr)
 
@@ -296,4 +296,3 @@ def set_initial_values(rel):
     rel.id = getId()
     rel.visible = True
     rel.version = 1
-

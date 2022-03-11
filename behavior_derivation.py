@@ -4,7 +4,7 @@ import constants
 import logging
 from bssd.core._types import CrossingType as ct
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('framework.behavior_derivation')
 
 LINE = {'solid': ct.PROHIBITED,
         'solid_solid': ct.PROHIBITED,
@@ -14,11 +14,11 @@ LINE = {'solid': ct.PROHIBITED,
         }
 
 lane_mark = {'curbstone': {'low': ct.ALLOWED,
-                           'high': ct.NOT_POSSIBLE,
+                           'high': ct.NOT_POSSIBLE
                            },
              'line_thick': LINE,
              'line_thin': LINE,
-             'virtual': ct.NONE,
+             'virtual': None,
              'unmarked': ct.ALLOWED,
              'road_border': ct.NOT_POSSIBLE,
              'guard_rail': ct.NOT_POSSIBLE,
@@ -39,18 +39,21 @@ def distinguish_lat_boundary(att, side):
                 op = check_existence(op, att['subtype'])
                 if isinstance(op, dict):
                     op = op[side]
-                    logger.debug(f'For ' + att['type'] + ' ' + att['subtype'] + f' CrossingType {op} has been derived.')
+                    logger.debug(f'For ' + att['type'] + ' ' + att['subtype'] + f' CrossingType {op.value} has been derived.')
                 else:
-                    logger.debug(f'For ' + att['type'] + ' ' + att['subtype'] + f' CrossingType {op} has been derived.')
+                    # logger.debug(f'For ' + att['type'] + ' ' + att['subtype'] + f' CrossingType {op.value} has been derived.')
+                    pass
             else:
                 logger.debug(
                     f'Tag \'subtype\' was not found in linestring-attributes. CrossingType derivation not possible.')
-                return ct.NONE
+                return None
+        elif op:
+            logger.debug(f'For ' + att['type'] + f' CrossingType {op.value} has been derived.')
         else:
-            logger.debug(f'For ' + att['type'] + f' CrossingType {op} has been derived.')
+            logger.debug(f'Not tracked/Non-existent linestring key. CrossingType derivation failed.')
     else:
         logger.warning(f'Tag \'type\' was not found in linestring-attributes. CrossingType derivation not possible.')
-        return ct.NONE
+        return None
 
     return op
 
@@ -72,8 +75,8 @@ def check_existence(d, t):
     if t in d:
         return d[t]
     else:
-        print('problem')
-        return ct.NONE
+        #print('problem')
+        return None
 
 
 

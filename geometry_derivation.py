@@ -4,7 +4,7 @@ from lanelet2.core import AttributeMap, TrafficLight, Lanelet, LineString3d, Poi
     LaneletMap, BoundingBox2d, BasicPoint2d
 from constants import LONG_BDR_TAGS, LONG_BDR_DICT
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('framework.geometry_derivation')
 
 
 def find_line_insufficient(ls_list, point_matching, point_free):
@@ -72,7 +72,7 @@ def find_flush_bdr(pt_left, pt_right, list_mutual):
             min_idx = min(idx_l, idx_r)
             max_idx = max(idx_l, idx_r)
             lines_local['protruding'] = [line.id, pt_list[min_idx:max_idx + 1]]
-            logger.debug(f'Found prodtrudingly fitting line with ID {line.id}')
+            logger.debug(f'Found protrudingly fitting line with ID {line.id}')
         else:
             pass
             # print(mutual_ls, pt_left, pt_right)

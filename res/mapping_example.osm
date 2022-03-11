@@ -11146,9 +11146,9 @@
     <tag k="type" v="lanelet" />
   </relation>
   <relation id="45152" visible="true" version="1">
+    <member type="way" ref="43892" role="outer" />
     <member type="way" ref="43890" role="outer" />
     <member type="way" ref="43698" role="outer" />
-    <member type="way" ref="43892" role="outer" />
     <tag k="location" v="urban" />
     <tag k="subtype" v="building" />
     <tag k="type" v="multipolygon" />
@@ -11302,12 +11302,12 @@
     <tag k="type" v="lanelet" />
   </relation>
   <relation id="45184" visible="true" version="1">
-    <member type="way" ref="43956" role="outer" />
-    <member type="way" ref="43954" role="outer" />
     <member type="way" ref="43962" role="outer" />
     <member type="way" ref="43960" role="outer" />
     <member type="way" ref="43958" role="outer" />
     <member type="way" ref="43934" role="outer" />
+    <member type="way" ref="43956" role="outer" />
+    <member type="way" ref="43954" role="outer" />
     <tag k="location" v="urban" />
     <tag k="region" v="de" />
     <tag k="subtype" v="walkway" />
@@ -11591,9 +11591,9 @@
     <tag k="type" v="multipolygon" />
   </relation>
   <relation id="45248" visible="true" version="1">
+    <member type="way" ref="43804" role="outer" />
     <member type="way" ref="43884" role="outer" />
     <member type="way" ref="43522" role="outer" />
-    <member type="way" ref="43804" role="outer" />
     <tag k="location" v="urban" />
     <tag k="region" v="de" />
     <tag k="subtype" v="vegetation" />
@@ -12475,14 +12475,14 @@
     <tag k="type" v="multipolygon" />
   </relation>
   <relation id="45428" visible="true" version="1">
-    <member type="way" ref="44662" role="outer" />
-    <member type="way" ref="44656" role="outer" />
-    <member type="way" ref="44672" role="outer" />
-    <member type="way" ref="44670" role="outer" />
     <member type="way" ref="44668" role="outer" />
     <member type="way" ref="44666" role="outer" />
     <member type="way" ref="44664" role="outer" />
     <member type="way" ref="44040" role="outer" />
+    <member type="way" ref="44662" role="outer" />
+    <member type="way" ref="44656" role="outer" />
+    <member type="way" ref="44672" role="outer" />
+    <member type="way" ref="44670" role="outer" />
     <tag k="location" v="urban" />
     <tag k="subtype" v="traffic_island" />
     <tag k="type" v="multipolygon" />
@@ -12563,9 +12563,9 @@
     <tag k="type" v="multipolygon" />
   </relation>
   <relation id="45444" visible="true" version="1">
+    <member type="way" ref="44016" role="outer" />
     <member type="way" ref="44414" role="outer" />
     <member type="way" ref="44848" role="outer" />
-    <member type="way" ref="44016" role="outer" />
     <tag k="location" v="urban" />
     <tag k="subtype" v="building" />
     <tag k="type" v="multipolygon" />
@@ -12786,12 +12786,12 @@
     <tag k="type" v="multipolygon" />
   </relation>
   <relation id="45496" visible="true" version="1">
-    <member type="way" ref="44430" role="outer" />
-    <member type="way" ref="44434" role="outer" />
     <member type="way" ref="44432" role="outer" />
     <member type="way" ref="44756" role="outer" />
     <member type="way" ref="44754" role="outer" />
     <member type="way" ref="44748" role="outer" />
+    <member type="way" ref="44430" role="outer" />
+    <member type="way" ref="44434" role="outer" />
     <tag k="location" v="urban" />
     <tag k="region" v="de" />
     <tag k="subtype" v="parking" />
@@ -12819,12 +12819,12 @@
     <tag k="type" v="multipolygon" />
   </relation>
   <relation id="45502" visible="true" version="1">
-    <member type="way" ref="44466" role="outer" />
-    <member type="way" ref="44062" role="outer" />
     <member type="way" ref="44436" role="outer" />
     <member type="way" ref="44744" role="outer" />
     <member type="way" ref="44742" role="outer" />
     <member type="way" ref="44740" role="outer" />
+    <member type="way" ref="44466" role="outer" />
+    <member type="way" ref="44062" role="outer" />
     <tag k="location" v="urban" />
     <tag k="region" v="de" />
     <tag k="subtype" v="parking" />
@@ -12881,14 +12881,14 @@
     <tag k="type" v="multipolygon" />
   </relation>
   <relation id="45514" visible="true" version="1">
-    <member type="way" ref="44734" role="outer" />
-    <member type="way" ref="44732" role="outer" />
-    <member type="way" ref="44730" role="outer" />
-    <member type="way" ref="44728" role="outer" />
     <member type="way" ref="44470" role="outer" />
     <member type="way" ref="44468" role="outer" />
     <member type="way" ref="44064" role="outer" />
     <member type="way" ref="44736" role="outer" />
+    <member type="way" ref="44734" role="outer" />
+    <member type="way" ref="44732" role="outer" />
+    <member type="way" ref="44730" role="outer" />
+    <member type="way" ref="44728" role="outer" />
     <tag k="location" v="urban" />
     <tag k="region" v="de" />
     <tag k="subtype" v="parking" />
