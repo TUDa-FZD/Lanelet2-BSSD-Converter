@@ -6,7 +6,7 @@ from bssd.core import mutable
 import bssd
 import osmium
 from bssd.core._types import CrossingType as ct
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('framework.classes')
 
 
 class bssdClass:
@@ -75,29 +75,29 @@ class bssdClass:
 class BSSD_element():
 
     def __init__(self):
+        self.attributes = None
         self.id = getId()
         self.visible = True
         self.version = 1
-        self.tags = {}
 
     def __str__(self):
         pass
 
-    def __eq__(self, other):
-        # Function for comparing behavior
-        if not type(self) == type(other):
-            return False
-        return self.tags == other.tags
+    def assign_to_attributes(self):
+        self.attributes.visible = self.visible
+        self.attributes.version = self.version
+        self.attributes.id = self.id
 
 
-class BehaviorSpace(mutable.BehaviorSpace):
+class BehaviorSpace(BSSD_element):
 
     def __init__(self, b_agst=None, b_alg=None, ll=None):
         super().__init__()
         self.alongBehavior = None
         self.againstBehavior = None
         self.ref_lanelet = None
-        set_initial_values(self)
+        self.attributes = mutable.BehaviorSpace()
+        self.assign_to_attributes()
 
         if b_agst:
             self.assign_agst(b_agst)
@@ -117,37 +117,30 @@ class BehaviorSpace(mutable.BehaviorSpace):
         # return str([id_str, behavior_agst, behavior_alg])
         return id_str + behavior_agst + behavior_alg
 
-    def __eq__(self, other):
-        # Function for comparing behavior of two behavior spaces
-        if not type(self) == type(other):
-            return False
-        elif (not self.alongBehavior == other.alongBehavior or
-              not self.againstBehavior == other.againstBehavior):
-            return False
-        return self.tags == other.tags
-
     def assign_along(self, bhvr):
         self.alongBehavior = bhvr
-        self.add_along(bhvr.id)
+        self.attributes.add_along(bhvr.id)
 
     def assign_agst(self, bhvr):
         self.againstBehavior = bhvr
-        self.add_against(bhvr.id)
+        self.attributes.add_against(bhvr.id)
 
     def assign_lanelet(self, ll):
         self.ref_lanelet = ll
-        self.add_lanelet(ll.id)
+        self.attributes.add_lanelet(ll.id)
 
 
-class Behavior(mutable.Behavior):
+class Behavior(BSSD_element):
 
     def __init__(self, res=None, bdr_long=None, bdr_left=None, bdr_right=None):
         super().__init__()
-        self.reservation_sub = []
+        self.reservation = []
         self.longBound = None
         self.leftBound = None
         self.rightBound = None
-        set_initial_values(self)
+        self.attributes = mutable.Behavior()
+        self.assign_to_attributes()
+
         # Todo: Give an option for multiple reservation instances
 
         if res:
@@ -170,17 +163,6 @@ class Behavior(mutable.Behavior):
 
         return id_str
 
-    def __eq__(self, other):
-        # Function for comparing behavior
-        if not type(self) == type(other):
-            return False
-        elif (not self.leftBound == other.leftBound or
-              not self.rightBound == other.rightBound or
-              not self.longBound == other.longBound or
-              not self.reservation == other.reservation):
-            return False
-        return self.tags == other.tags
-
     def assign_long_ref(self, ref, direction):
         if self.longBound:
             self.longBound.ref_line = ref
@@ -188,26 +170,27 @@ class Behavior(mutable.Behavior):
 
     def assign_left_boundary(self, bound):
         self.leftBound = bound
-        self.add_boundary_left(bound.id)
+        self.attributes.add_boundary_left(bound.id)
 
     def assign_right_boundary(self, bound):
         self.rightBound = bound
-        self.add_boundary_right(bound.id)
+        self.attributes.add_boundary_right(bound.id)
 
     def assign_long_boundary(self, bound):
         self.longBound = bound
-        self.add_boundary_long(bound.id)
+        self.attributes.add_boundary_long(bound.id)
 
     def assign_reservation(self, res):
-        self.reservation_sub.append(res)
-        self.add_reservation(res.id)
+        self.reservation.append(res)
+        self.attributes.add_reservation(res.id)
 
 
-class Reservation(mutable.Reservation):
+class Reservation(BSSD_element):
 
     def __init__(self):
         super().__init__()
-        set_initial_values(self)
+        self.attributes = mutable.Reservation()
+        self.assign_to_attributes()
 
     def __str__(self):
         # Print ID and
@@ -218,13 +201,14 @@ class Reservation(mutable.Reservation):
         return id_str + b
 
 
-class BoundaryLat(mutable.BoundaryLat):
+class BoundaryLat(BSSD_element):
 
     def __init__(self, bdr=None):
         super().__init__()
         self.lineString = None
-        set_initial_values(self)
-        #self.crossing = ct.PROHIBITED
+        self.attributes = mutable.BoundaryLat()
+        self.assign_to_attributes()
+
         if bdr:
             self.assign_ls(bdr)
 
@@ -237,16 +221,17 @@ class BoundaryLat(mutable.BoundaryLat):
 
     def assign_ls(self, ls):
         self.lineString = ls
-        self.add_boundary(ls.id)
+        self.attributes.add_boundary(ls.id)
 
 
-class BoundaryLong(mutable.BoundaryLong):
+class BoundaryLong(BSSD_element):
 
     def __init__(self, bdr=None):
         super().__init__()
         self.lineString = None
         self.ref_line = None
-        set_initial_values(self)
+        self.attributes = mutable.BoundaryLong()
+        self.assign_to_attributes()
 
         if bdr:
             self.assign_ls(bdr)
@@ -258,7 +243,7 @@ class BoundaryLong(mutable.BoundaryLong):
 
     def assign_ls(self, ls):
         self.lineString = ls
-        self.add_boundary(ls.id)
+        self.attributes.add_boundary(ls.id)
 
 
 # def create_placeholder(lanelet=None, bdr_agst=None, bdr_alg=None):
@@ -290,9 +275,3 @@ class BoundaryLong(mutable.BoundaryLong):
 #         b_long = None
 #
 #     return Behavior(bdr_left=b_left, bdr_right=b_right, bdr_long=b_long, res=res)
-
-
-def set_initial_values(rel):
-    rel.id = getId()
-    rel.visible = True
-    rel.version = 1

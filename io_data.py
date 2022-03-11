@@ -61,7 +61,7 @@ class io_handler():
 
         for layer, layerdict in iter(bssd):
             for id_obj, bssd_object in layerdict.items():
-                writer_bssd.add_relation(bssd_object.get_osmium())
+                writer_bssd.add_relation(bssd_object.attributes.get_osmium())
 
         writer_bssd.close()
 

@@ -100,8 +100,6 @@ class data_handler():
                 logger.warning(f"For bicycle_lane with ID {ll.id}: Multiple neighbors have been found.\
                 left: {nbrs_left}, right {nbrs_right}")
 
-            # if (nbrs_left and ls_of_pbl(ll.leftBound.attributes) and ll_relevant(nbrs_left[0].attributes)) or \
-            #         (nbrs_right and ls_of_pbl(ll.rightBound.attributes) and ll_relevant(nbrs_right[0].attributes)):
             if protected_b_lane(nbrs_left, ll.leftBound.attributes) \
                     or protected_b_lane(nbrs_right, ll.rightBound.attributes):
                 logger.debug(f' Lanelet {ll.id} identified as protected bicycle lane')
@@ -202,8 +200,8 @@ class data_handler():
 
         if 'own_speed_limit' not in lanelet.attributes and 'other_speed_limit' not in lanelet.attributes:
             own, other = self.derive_segment_speed_limit(lanelet)
-        bs.alongBehavior.speed_max = lanelet.attributes['own_speed_limit']
-        bs.againstBehavior.speed_max = lanelet.attributes['other_speed_limit']
+        bs.alongBehavior.attributes.speed_max = lanelet.attributes['own_speed_limit']
+        bs.againstBehavior.attributes.speed_max = lanelet.attributes['other_speed_limit']
 
         self.derive_conflicts(bs)
 
@@ -212,7 +210,7 @@ class data_handler():
         cr = distinguish_lat_boundary(behavior_a.leftBound.lineString.attributes, side)
         # Todo: adjust to new possiblities in core
         if cr:
-            behavior_a.leftBound.crossing = behavior_b.rightBound.crossing = cr
+            behavior_a.leftBound.attributes.crossing = behavior_b.rightBound.attributes.crossing = cr
 
         area_list = self.map_lanelet.areaLayer.findUsages(behavior_a.leftBound.lineString) + \
                     self.map_lanelet.areaLayer.findUsages(behavior_a.leftBound.lineString.invert())
@@ -222,8 +220,8 @@ class data_handler():
                          f' {behavior_a.leftBound.id} and {behavior_b.rightBound.id}. Setting parking_only=yes')
             parking_only = True
 
-        behavior_a.leftBound.parking_only = \
-            behavior_b.rightBound.parking_only = parking_only
+        behavior_a.leftBound.attributes.parking_only = \
+            behavior_b.rightBound.attributes.parking_only = parking_only
 
     def derive_behavior_bdr_long(self, behavior, ll):
 
@@ -239,7 +237,7 @@ class data_handler():
                 set_common = set_from_ls ^ set_from_conflict
 
                 if any(lanelet.attributes['subtype'] in subtypes for lanelet in set_common):
-                    behavior.longBound.tags['no_stagnant_traffic'] = 'yes'
+                    behavior.longBound.attributes.no_stagnant_traffic = True
 
     def derive_segment_speed_limit(self, lanelet):
 
@@ -382,10 +380,10 @@ class data_handler():
         for ll in conflicts:
             if not ll_relevant(ll.attributes): # Todo: bring conditions together
                 if ll.leftBound.attributes['type'] == ll.rightBound.attributes['type'] == 'zebra_marking':
-                    bs.alongBehavior.reservation_sub[0].reservation = tp.ReservationType.EXTERNALLY
-                    bs.againstBehavior.reservation_sub[0].reservation = tp.ReservationType.EXTERNALLY
-                    bs.alongBehavior.reservation_sub[0].pedestrian = True
-                    bs.againstBehavior.reservation_sub[0].pedestrian = True
-                    bs.alongBehavior.reservation_sub[0].add_link(ll.id)
-                    bs.againstBehavior.reservation_sub[0].add_link(ll.id)
+                    bs.alongBehavior.reservation[0].attributes.reservation = tp.ReservationType.EXTERNALLY
+                    bs.againstBehavior.reservation[0].attributes.reservation = tp.ReservationType.EXTERNALLY
+                    bs.alongBehavior.reservation[0].attributes.pedestrian = True
+                    bs.againstBehavior.reservation[0].attributes.pedestrian = True
+                    bs.alongBehavior.reservation[0].attributes.add_link(ll.id)
+                    bs.againstBehavior.reservation[0].attributes.add_link(ll.id)
                     break
