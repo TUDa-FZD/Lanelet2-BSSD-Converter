@@ -26,7 +26,7 @@ def linestring_to_vector(ls):
 
     return np.array(v)
 
-def angle_between(ll1, ll2):
+def angle_between(v1, v2):
     """ Returns the angle in radians between vectors 'v1' and 'v2'::
 
             >> angle_between((1, 0, 0), (0, 1, 0))
@@ -36,12 +36,22 @@ def angle_between(ll1, ll2):
             >> angle_between((1, 0, 0), (-1, 0, 0))
             3.141592653589793
     """
-    v1 = linestring_to_vector(ll1.centerline)
-    v2 = linestring_to_vector(ll2.centerline)
 
     v1_u = unit_vector(v1)
     v2_u = unit_vector(v2)
     return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))*360/(2*math.pi)
+
+
+def angle_between_lanelets(ll1, ll2):
+    v1 = linestring_to_vector(ll1.centerline)
+    v2 = linestring_to_vector(ll2.centerline)
+    return angle_between(v1, v2)
+
+
+def angle_between_linestrings(ls1, ls2):
+    v1 = linestring_to_vector(ls1)
+    v2 = linestring_to_vector(ls2)
+    return angle_between(v1, v2)
 
 
 def setup_logger(file):

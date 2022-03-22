@@ -1,7 +1,7 @@
 import os
 import time
 import io_data
-from data_handler import data_handler
+from data_handler import DataHandler
 import argparse
 from util import edit_log_file, setup_logger
 
@@ -20,7 +20,7 @@ def framework():
     # ----------- INPUT --------------
     # Load example file from lanelet2
     # filename = args.filename
-    filename = "res/DA_Nieder-Ramst-Mühlstr-Hochstr.osm"
+    filename = "res/mapping_example.osm"
 
     logger, log_file = setup_logger(filename)
 
@@ -39,9 +39,9 @@ def framework():
     start = time.perf_counter()
 
     logger.info(f'Start preprocessing. Finding relevant lanelets and distinguishing bicycle_lanes')
-    handler = data_handler(map_ll)
+    handler = DataHandler(map_ll)
     handler.find_relevant_lanelets()
-    handler.get_RoutingGraph_all()
+    handler.get_routinggraph_all()
     end = time.perf_counter()
     logger.info(f"Preprocessing completed, relevant lanelets detected and RoutingGraph created."
                 f"\nElapsed time: {round(end - start, 2)}")

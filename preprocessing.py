@@ -7,7 +7,7 @@ def ll_relevant(att):
     # Determine the relevance of a lanelet by first checking its subtype (for instance: shouldn't be "stairs")
     # and second if any overriding participant-tags are being used
 
-    if att['subtype'] in constants.SUBTYPE_TAGS:
+    if att['subtype'] in constants.SUBTYPE_TAGS or ('subtype_alt' in att and att['subtype_alt'] == 'bicycle_lane_protected'):
 
         if any('participant' in key.lower() for key, value in att.items()):
 
@@ -26,7 +26,7 @@ def ll_relevant(att):
 
 
 def ls_of_pbl(att):
-    if ('line' in att['type'] and att['subtype'] == 'dashed') or att['type'] == 'virtual':
+    if ('line' in att['type'] and att['subtype'] == 'dashed') or att['type'] == 'virtual' or att['type'] == 'unmarked':
         return True
     else:
         return False

@@ -13,10 +13,27 @@ import constants
 import lanelet2.geometry as geo
 from bssd.core import _types as tp
 from collections import defaultdict
+
 logger = logging.getLogger('framework.data_handler')
 
 
-class data_handler():
+def is_zebra_and_intersecting(ll, ref_ll):
+    if geo.intersectCenterlines2d(ll, ref_ll) and not ll_relevant(ll.attributes) and \
+            ll.leftBound.attributes['type'] == ll.rightBound.attributes['type'] == 'zebra_marking':
+        return True
+    else:
+        return False
+
+
+def join_dictionaries(dict_a, dict_b):
+    for d in (dict_a, dict_b):
+        for key, value in d.items():
+            dict_a[key].update(value)
+
+    return dict_a
+
+
+class DataHandler():
 
     def __init__(self, map_lanelet):
         self.map_lanelet = map_lanelet
@@ -26,7 +43,7 @@ class data_handler():
         self.traffic_rules = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
                                                            lanelet2.traffic_rules.Participants.Vehicle)
 
-    def get_RoutingGraph_all(self):
+    def get_routinggraph_all(self):
         edited = {}
 
         for ll in self.map_lanelet.laneletLayer:
@@ -107,7 +124,6 @@ class data_handler():
                 ll.attributes['participant:vehicle'] = 'yes'
                 ll.attributes['participant:bicycle'] = 'yes'
                 self.relevant_lanelets.append(ll.id)
-                list_bicycle.remove(ll)
 
     def get_long_bdr(self, pt_left, pt_right, use_previous, previous_id):
         ls = None
@@ -131,14 +147,12 @@ class data_handler():
             lsList_pt_left = lsList_pt_left - mutual_ls
             lsList_pt_right = lsList_pt_right - mutual_ls
 
-            ### EXACT OR overarching ###
+            # exact OR overarching
             lines.update(find_flush_bdr(pt_left, pt_right, mutual_ls))
-
-            ### insuFFICIENT
+            # insufficient
             lines['insufficient_half_left'] = find_line_insufficient(lsList_pt_left, pt_left, pt_right)
             lines['insufficient_half_right'] = find_line_insufficient(lsList_pt_right, pt_right, pt_left)
-
-            ### Both sides are not matching
+            # Both sides are not matching
             lines.update(self.find_inside_lines(pt_left, pt_right))
 
             # In case multiple linestrings have been found, write an error
@@ -153,7 +167,8 @@ class data_handler():
                 if any(v[0] for k, v in lines.items()):
                     matching_case = [k for k, v in lines.items() if v[0]]
                     pt_pairs = lines[matching_case[0]][1]
-                    logger.debug(f'Using existing line with ID {lines[matching_case[0]][0]} partially for long. boundary')
+                    logger.debug(
+                        f'Using existing line with ID {lines[matching_case[0]][0]} partially for long. boundary')
                 else:
                     pt_pairs = [pt_left, pt_right]
                     logger.debug(f'No existing line has been found, using endpoints for new linestring.')
@@ -170,7 +185,8 @@ class data_handler():
         #### perhaps use geometry.inside
         searchBox = make_orth_bounding_box(pt_left, pt_right)
 
-        near_ls = [ls for ls in self.map_lanelet.lineStringLayer.search(searchBox) if not pt_left in ls or not pt_right in ls]
+        near_ls = [ls for ls in self.map_lanelet.lineStringLayer.search(searchBox) if
+                   not pt_left in ls or not pt_right in ls]
 
         for line in near_ls:
             # Distinguish line inside and outside of lanelet
@@ -199,7 +215,7 @@ class data_handler():
         self.derive_behavior_bdr_long(bs.againstBehavior, lanelet)
 
         if 'own_speed_limit' not in lanelet.attributes and 'other_speed_limit' not in lanelet.attributes:
-            own, other = self.derive_segment_speed_limit(lanelet)
+            self.derive_segment_speed_limit(lanelet)
         bs.alongBehavior.attributes.speed_max = lanelet.attributes['own_speed_limit']
         bs.againstBehavior.attributes.speed_max = lanelet.attributes['other_speed_limit']
 
@@ -242,20 +258,24 @@ class data_handler():
     def derive_segment_speed_limit(self, lanelet):
 
         own_direction = self.find_adjacent(lanelet, 0)
+        first_opposing_lls = None
         self.assign_sl_along(own_direction)
 
         # get speed limit of outer left lanelet
         for ll in own_direction[max(own_direction.keys())]:
-            other_direction = self.find_adjacent(ll, 0)
+            # find neighboring lanelet in other direction
+            first_opposing_lls = self.find_one_sided_neighbors(ll, ll.leftBound.invert(), 'other')
 
-            if other_direction:
+            if first_opposing_lls:
+
+                other_direction = self.find_adjacent(first_opposing_lls.pop(), 0)
                 # derive speed limit for other_direction
                 self.assign_sl_along(other_direction)
 
                 # distinguish passability between driving directions
                 if not distinguish_lat_boundary(ll.leftBound.attributes, 'left') == 'not_possible':
                     # no structural separation
-                    ll_other_left = other_direction[max(other_direction.keys())].pop()
+                    ll_other_left = list(other_direction[max(other_direction.keys())])[0]
                     self.assign_sl_against(other_direction, ll)
                     self.assign_sl_against(own_direction, ll_other_left)
                 else:
@@ -265,11 +285,9 @@ class data_handler():
 
         # if no lanelet into the opposing direction is found,
         # it is assumed that the driving directions are structurally separated
-        if not other_direction:
+        if not first_opposing_lls:
             # driving directions are structurally separated
-            self.assign_sl_against(other_direction)
             self.assign_sl_against(own_direction)
-        return own_direction, other_direction
 
     def assign_sl_along(self, segment):
         for level in segment.keys():
@@ -285,28 +303,31 @@ class data_handler():
                     ll.attributes['other_speed_limit'] = ll.attributes['own_speed_limit']
 
     def neighbor_next_to_area(self, ls):
-        a_layer = self.map_lanelet.areaLayer
-        ll_layer = self.map_lanelet.laneletLayer
-        neighbor_areas = set.union(set(a_layer.findUsages(ls)),
-                                   set(a_layer.findUsages(ls.invert())))
-        neighbor_areas = {area for area in neighbor_areas if area.attributes['subtype'] == 'keepout'}
 
+        ll_layer = self.map_lanelet.laneletLayer
+
+        neighbor_areas = self.find_neighbor_areas(ls, 'keepout')
         if len(neighbor_areas) > 1:
-            logger.warning(f'For lanelet {ll.id}: Multiple adjacent areas have been found.'
+            logger.warning(f'For linestring {ls.id}: Multiple adjacent areas have been found.'
                            f' No distinct derivation of driving directions possible')
         if neighbor_areas:
             area = neighbor_areas.pop()
-            surrounding_lanelets = []
+            surrounding_lanelets = dict()
             # Get list of all linestrings in area
-            ls_of_area = {ls for ls in area.outerBound}
+            ls_of_area = {area_boundary for area_boundary in area.outerBound}
             # Remove linestring of current lanelet from this list
             ls_of_area.discard(ls)
             ls_of_area.discard(ls.invert())
             # Search for all usages of those linestrings in other lanelets and collect them in a list
-            for ls in ls_of_area:
-                surrounding_lanelets = surrounding_lanelets + ll_layer.findUsages(ls) + ll_layer.findUsages(ls.invert())
-            # Filter list of lanelets for ones that are relevant
-            surrounding_lanelets = [ll for ll in surrounding_lanelets if ll_relevant(ll.attributes)]
+            for area_boundary in ls_of_area:
+                for ll in ll_layer.findUsages(area_boundary):
+                    # Filter list of lanelets for ones that are relevant
+                    if ll_relevant(ll.attributes):
+                        surrounding_lanelets[ll] = area_boundary
+                for ll in ll_layer.findUsages(area_boundary.invert()):
+                    # Filter list of lanelets for ones that are relevant
+                    if ll_relevant(ll.attributes):
+                        surrounding_lanelets[ll] = area_boundary.invert()
 
             # If more than one lanelets have been found, write a warning to log
             if len(surrounding_lanelets) > 1:
@@ -314,14 +335,14 @@ class data_handler():
                                f' No distinct derivation of driving directions possible')
             return surrounding_lanelets
         else:
-            return []
+            return dict()
 
     def find_adjacent(self, current_ll, level, prev_ll=None):
         # Find all lanelets that are lying right next to each other
         # condition is that they share there lateral boundary
 
-        lefts = self.find_one_sided_neighbors(current_ll, current_ll.leftBound)
-        rights = self.find_one_sided_neighbors(current_ll, current_ll.rightBound)
+        lefts = self.find_one_sided_neighbors(current_ll, current_ll.leftBound, 'same')
+        rights = self.find_one_sided_neighbors(current_ll, current_ll.rightBound, 'same')
         lefts.discard(prev_ll)
         rights.discard(prev_ll)
 
@@ -330,60 +351,97 @@ class data_handler():
 
         for lanelet in lefts:
             sub_set = self.find_adjacent(lanelet, level + 1, current_ll)
-            self.join_dictionaries(lanelets_for_direction, sub_set)
+            join_dictionaries(lanelets_for_direction, sub_set)
 
         for lanelet in rights:
             sub_set = self.find_adjacent(lanelet, level - 1, current_ll)
-            self.join_dictionaries(lanelets_for_direction, sub_set)
+            join_dictionaries(lanelets_for_direction, sub_set)
 
         return lanelets_for_direction
 
-    def join_dictionaries(self, dict_a, dict_b):
-        for d in (dict_a, dict_b):
-            for key, value in d.items():
-                dict_a[key].update(value)
-
-        return dict_a
-
-    def find_one_sided_neighbors(self, lanelet, ls):
+    def find_one_sided_neighbors(self, lanelet, ls, orientation):
         ll_layer = self.map_lanelet.laneletLayer
         nbrs = {ll for ll in ll_layer.findUsages(ls) if ll_relevant(ll.attributes)}
         nbrs.discard(lanelet)
         nbrs = {ll for ll in nbrs if not geo.overlaps2d(ll, lanelet)}
         surrounding_lls_left = self.neighbor_next_to_area(ls)
-        nbrs.update(self.filter_for_direction(surrounding_lls_left, lanelet, 'same'))
+        nbrs.update(self.filter_for_direction(surrounding_lls_left, lanelet, ls, orientation))
 
         return nbrs
 
-    def filter_for_direction(self, list_of_lanelets, ref_lanelet, orientation):
+    def filter_for_direction(self, sourrounding_lanelets, ref_lanelet, ref_ls, orientation):
         list_for_direction = []
-        for ll in list_of_lanelets:
-            angle = util.angle_between(ll, ref_lanelet)
-            if orientation == 'same' and angle < 15:
+        for ll, ls in sourrounding_lanelets.items():
+            angle = util.angle_between_lanelets(ll, ref_lanelet)
+            if (orientation == 'same' and angle < 45) \
+                    and (ls[0] == ref_ls[0] or ls[-1] == ref_ls[-1]
+                         or self.are_linestrings_orthogonal(ls, ref_ls, [ls[0], ref_ls[0]])):
                 list_for_direction.append(ll)
-            elif orientation == 'other' and 165 < angle < 195:
-                list_for_direction.append(ll)
-            elif 15 < angle < 165:
-                logger.warning(f'Lanelet {ll.id} and Linestring {ref_lanelet.id} border the area and '
+            # Todo: Decide for one way
+            # if orientation == 'same' and angle < 45:
+            #     if ls[0] == ref_ls[0] or ls[-1] == ref_ls[-1]:
+            #         list_for_direction.append(ll)
+            #     elif self.are_linestrings_orthogonal(ls, ref_ls, [ls[0], ref_ls[0]]):
+            #         list_for_direction.append(ll)
+            elif orientation == 'other' and 135 < angle < 225:
+                if ls[0] == ref_ls[-1] or ls[-1] == ref_ls[0]:
+                    list_for_direction.append(ll)
+                elif self.are_linestrings_orthogonal(ls, ref_ls, [ls[-1], ref_ls[0]]):
+                    list_for_direction.append(ll)
+            elif 45 < angle < 135:
+                logger.warning(f'Lanelet {ll.id} and {ref_lanelet.id} border the same area and '
                                f'cannot be assigned to the same segment. Reason: Angle too large')
 
-        if len(list_of_lanelets) > 1:
-            logger.warning(f'Multiple Lanelets for same direction as a neighbor to a area have been found.'
-                           f' Lanelet IDs: {[ll.id for ll in list_of_lanelets]}')
+        if len(sourrounding_lanelets) > 1:
+            logger.warning(f'Multiple Lanelets bordering the same area.'
+                           f' Lanelet IDs: {[ll.id for ll in sourrounding_lanelets.keys()]}.'
+                           f' Lanelet(s) {list_for_direction} has been selected due to given criteria.')
 
-        return list_of_lanelets
+        return list_for_direction
+
+    def are_linestrings_orthogonal(self, ls1, ls2, pts):
+        pts_corrected = [self.map_lanelet.pointLayer[pt.id] for pt in pts]
+        ls_connect = LineString3d(getId(), pts_corrected)
+        angle_1 = util.angle_between_linestrings(ls1, ls_connect)
+        angle_2 = util.angle_between_linestrings(ls2, ls_connect)
+
+        return 80 < angle_1 < 100 and 80 < angle_2 < 100
 
     def derive_conflicts(self, bs):
 
-        conflicts = self.graph.conflicting(bs.ref_lanelet)
-        conflicts = [ll for ll in conflicts if geo.intersectCenterlines2d(ll, bs.ref_lanelet)]
-        for ll in conflicts:
-            if not ll_relevant(ll.attributes): # Todo: bring conditions together
-                if ll.leftBound.attributes['type'] == ll.rightBound.attributes['type'] == 'zebra_marking':
-                    bs.alongBehavior.reservation[0].attributes.reservation = tp.ReservationType.EXTERNALLY
-                    bs.againstBehavior.reservation[0].attributes.reservation = tp.ReservationType.EXTERNALLY
-                    bs.alongBehavior.reservation[0].attributes.pedestrian = True
-                    bs.againstBehavior.reservation[0].attributes.pedestrian = True
-                    bs.alongBehavior.reservation[0].attributes.add_link(ll.id)
-                    bs.againstBehavior.reservation[0].attributes.add_link(ll.id)
-                    break
+        # find all conflicting lanelets in RoutingGraph for lanelet of this behavior space
+        for ll in self.graph.conflicting(bs.ref_lanelet):
+            # filter this list for lanelets whose centerline are intersecting with the behavior spaces lanelet
+            if is_zebra_and_intersecting(ll, bs.ref_lanelet):
+
+                bs.alongBehavior.reservation[0].attributes.reservation = tp.ReservationType.EXTERNALLY
+                bs.againstBehavior.reservation[0].attributes.reservation = tp.ReservationType.EXTERNALLY
+                bs.alongBehavior.reservation[0].attributes.pedestrian = True
+                bs.againstBehavior.reservation[0].attributes.pedestrian = True
+
+                for link_ll in self.graph.conflicting(ll):
+                    if ll_relevant(link_ll.attributes) and geo.intersectCenterlines2d(link_ll, ll):
+
+                        if not link_ll == bs.ref_lanelet:
+                            bs.alongBehavior.reservation[0].attributes.add_link(link_ll.id)
+                            bs.againstBehavior.reservation[0].attributes.add_link(link_ll.id)
+
+                        nbr_areas = self.find_neighbor_areas(link_ll.leftBound, 'walkway') | self.find_neighbor_areas(
+                            link_ll.rightBound, 'walkway')
+                        for area in nbr_areas:
+                            bs.alongBehavior.reservation[0].attributes.add_link(area.id)
+                            bs.againstBehavior.reservation[0].attributes.add_link(area.id)
+
+                for link_ll in self.graph.previous(ll):
+                    bs.alongBehavior.reservation[0].attributes.add_link(link_ll.id)
+                    bs.againstBehavior.reservation[0].attributes.add_link(link_ll.id)
+                break
+
+    def find_neighbor_areas(self, ls, subtype=None):
+        a_layer = self.map_lanelet.areaLayer
+        neighbor_areas = set.union(set(a_layer.findUsages(ls)),
+                                   set(a_layer.findUsages(ls.invert())))
+        if subtype:
+            neighbor_areas = {area for area in neighbor_areas if area.attributes['subtype'] == subtype}
+
+        return neighbor_areas
