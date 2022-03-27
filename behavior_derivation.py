@@ -57,6 +57,46 @@ def distinguish_lat_boundary(att, side):
 
     return op
 
+def distinguish_lat_boundary_3(att, side):
+    tp = att.get('type')
+
+    if tp:
+        op = lane_mark.get(tp)
+        if isinstance(op, dict):
+            stp = att.get('type')
+    else:
+        # type not existent
+        pass
+
+
+    if 'type' in att:
+        # op = lane_mark[att['type']]
+        op = check_existence(lane_mark, att['type'])
+        if isinstance(op, dict):
+            if 'subtype' in att:
+                # op = op[att['subtype']]
+                op = check_existence(op, att['subtype'])
+                if isinstance(op, dict):
+                    op = op[side]
+                    logger.debug(f'For ' + att['type'] + ' ' + att['subtype'] + f' CrossingType {op.value} has been derived.')
+                else:
+                    # logger.debug(f'For ' + att['type'] + ' ' + att['subtype'] + f' CrossingType {op.value} has been derived.')
+                    pass
+            else:
+                logger.debug(
+                    f'Tag \'subtype\' was not found in linestring-attributes. CrossingType derivation not possible.')
+                return None
+        elif op:
+            logger.debug(f'For ' + att['type'] + f' CrossingType {op.value} has been derived.')
+        else:
+            logger.debug(f'Not tracked/Non-existent linestring key. CrossingType derivation failed.')
+    else:
+        logger.warning(f'Tag \'type\' was not found in linestring-attributes. CrossingType derivation not possible.')
+        return None
+
+    return op
+
+
 def distinguish_lat_boundary_2(att, key):
     if key in att:
         if att[key] in lane_mark:
