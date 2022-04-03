@@ -3,11 +3,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def ll_relevant(att):
+def is_ll_relevant(att):
     # Determine the relevance of a lanelet by first checking its subtype (for instance: shouldn't be "stairs")
     # and second if any overriding participant-tags are being used
 
-    if att['subtype'] in constants.SUBTYPE_TAGS or ('subtype_alt' in att and att['subtype_alt'] == 'bicycle_lane_protected'):
+    if att['subtype'] in constants.SUBTYPE_TAGS or ('relevant_bicycle_lane' in att and att['relevant_bicycle_lane'] == 'yes'):
 
         if any('participant' in key.lower() for key, value in att.items()):
 
@@ -25,17 +25,9 @@ def ll_relevant(att):
     return relevant
 
 
-def ls_of_pbl(att):
-    if ('line' in att['type'] and att['subtype'] == 'dashed') or att['type'] == 'virtual' or att['type'] == 'unmarked':
-        return True
-    else:
-        return False
-
-
-def protected_b_lane(nbrs, bound_att):
-    if nbrs and \
-            ls_of_pbl(bound_att) and\
-            ll_relevant(nbrs[0].attributes):
+def is_bicycle_ll_relevant(nbrs, bound_att):
+    if nbrs and any(nbr for nbr in nbrs if is_ll_relevant(nbr.attributes))\
+            and bound_att['type'] in constants.RELEVANT_BICYCLE_TAGS:
             #('line' in att['type'] and att['subtype'] == 'dashed') or att['type'] == 'virtual':
         return True
     else:

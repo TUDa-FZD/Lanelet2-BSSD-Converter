@@ -4,7 +4,7 @@ from lanelet2.core import AttributeMap
 
 def test_relevance():
     attributes = AttributeMap({'type': 'lanelet', 'subtype': 'road'})
-    assert fw.ll_relevant(attributes)
+    assert fw.is_ll_relevant(attributes)
     attributes = AttributeMap({'type': 'lanelet',
                                'subtype': 'road',
                                'participant:bicycle': 'yes',

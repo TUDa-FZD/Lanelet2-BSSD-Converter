@@ -1,6 +1,3 @@
-import lanelet2
-from preprocessing import ll_relevant
-import constants
 import logging
 from bssd.core._types import CrossingType as ct
 

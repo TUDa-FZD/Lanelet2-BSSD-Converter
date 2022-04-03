@@ -51,7 +51,7 @@ def framework():
     start = time.perf_counter()
     logger.info(f'Start recursive loop through relevant lanelets')
     while handler.relevant_lanelets:
-        handler.ll_recursion(handler.relevant_lanelets[0])
+        handler.recursive_loop(handler.relevant_lanelets[0])
     end = time.perf_counter()
     logger.info(f"Loop for relevant lanelets completed.\nElapsed time: {round(end - start, 2)}")
 

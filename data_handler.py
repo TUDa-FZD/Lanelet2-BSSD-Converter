@@ -1,5 +1,5 @@
 import BSSD_elements
-from preprocessing import ll_relevant, protected_b_lane
+from preprocessing import is_ll_relevant, is_bicycle_ll_relevant
 import logging
 import lanelet2
 from lanelet2.geometry import distance as dist
@@ -8,7 +8,7 @@ import util
 from lanelet2.core import LineString3d, getId
 from constants import LONG_BDR_TAGS, LONG_BDR_DICT
 from geometry_derivation import make_orth_bounding_box, find_flush_bdr, find_line_insufficient
-from behavior_derivation import distinguish_lat_boundary_5
+from behavior_derivation import distinguish_lat_boundary
 import constants
 import lanelet2.geometry as geo
 from bssd.core import _types as tp
@@ -18,7 +18,7 @@ logger = logging.getLogger('framework.data_handler')
 
 
 def is_zebra_and_intersecting(ll, ref_ll):
-    if geo.intersectCenterlines2d(ll, ref_ll) and not ll_relevant(ll.attributes) and \
+    if geo.intersectCenterlines2d(ll, ref_ll) and not is_ll_relevant(ll.attributes) and \
             ll.leftBound.attributes['type'] == ll.rightBound.attributes['type'] == 'zebra_marking':
         return True
     else:
@@ -63,10 +63,10 @@ class DataHandler():
                 del ll.attributes['participant:vehicle']
 
     def find_relevant_lanelets(self):
-        self.relevant_lanelets = [item.id for item in self.map_lanelet.laneletLayer if ll_relevant(item.attributes)]
+        self.relevant_lanelets = [item.id for item in self.map_lanelet.laneletLayer if is_ll_relevant(item.attributes)]
         self.get_relevant_bicycle_lls()
 
-    def ll_recursion(self, ll_id, direction=None, ls=None):
+    def recursive_loop(self, ll_id, direction=None, ls=None):
 
         ll = self.map_lanelet.laneletLayer[ll_id]
         # Remove current lanelet from list of relevant lanelets to keep track which lanelets still have to be done
@@ -93,10 +93,10 @@ class DataHandler():
         # about already derived boundaries
         for successor in self.graph.following(ll):
             if successor.id in self.relevant_lanelets:
-                self.ll_recursion(successor.id, 'fwd', agst_ls)
+                self.recursive_loop(successor.id, 'fwd', agst_ls)
         for predecessor in self.graph.previous(ll):
             if predecessor.id in self.relevant_lanelets:
-                self.ll_recursion(predecessor.id, 'bwd', alg_ls)
+                self.recursive_loop(predecessor.id, 'bwd', alg_ls)
 
     def find_usages_and_remove_self(self, ll, side):
 
@@ -117,16 +117,17 @@ class DataHandler():
             nbrs_left = self.find_usages_and_remove_self(ll, 'l')
             nbrs_right = self.find_usages_and_remove_self(ll, 'r')
 
+            ## notwendig?
             if len(nbrs_left) > 1 or len(nbrs_right) > 1:
                 logger.warning(f"For bicycle_lane with ID {ll.id}: Multiple neighbors have been found.\
                 left: {nbrs_left}, right {nbrs_right}")
+            ## --------
 
-            if protected_b_lane(nbrs_left, ll.leftBound.attributes) \
-                    or protected_b_lane(nbrs_right, ll.rightBound.attributes):
-                logger.debug(f' Lanelet {ll.id} identified as protected bicycle lane')
-                ll.attributes['subtype_alt'] = 'bicycle_lane_protected'
-                ll.attributes['participant:vehicle'] = 'yes'
-                ll.attributes['participant:bicycle'] = 'yes'
+            if is_bicycle_ll_relevant(nbrs_left, ll.leftBound.attributes) \
+                    or is_bicycle_ll_relevant(nbrs_right, ll.rightBound.attributes):
+                logger.debug(f' Lanelet {ll.id} identified as relevant bicycle lane')
+                ll.attributes['relevant_bicycle_lane'] = 'yes'
+
                 self.relevant_lanelets.append(ll.id)
 
     def get_long_bdr(self, pt_left, pt_right, use_previous, previous):
@@ -242,7 +243,7 @@ class DataHandler():
     def derive_behavior_bdr_lat(self, behavior_a, behavior_b, side):
 
         logger.debug(f'Deriving CrossingType for linestring {behavior_a.leftBound.lineString.id}.')
-        cr = distinguish_lat_boundary_5(behavior_a.leftBound.lineString.attributes, side)
+        cr = distinguish_lat_boundary(behavior_a.leftBound.lineString.attributes, side)
         # Todo: adjust to new possiblities in core
         if cr:
             behavior_a.leftBound.attributes.crossing = behavior_b.rightBound.attributes.crossing = cr
@@ -292,7 +293,7 @@ class DataHandler():
                 self.assign_sl_along(other_direction)
 
                 # distinguish passability between driving directions
-                if not distinguish_lat_boundary_5(ll.leftBound.attributes, 'left') == 'not_possible':
+                if not distinguish_lat_boundary(ll.leftBound.attributes, 'left') == 'not_possible':
                     # no structural separation
                     ll_other_left = list(other_direction[max(other_direction.keys())])[0]
                     self.assign_sl_against(other_direction, ll)
@@ -341,11 +342,11 @@ class DataHandler():
             for area_boundary in ls_of_area:
                 for ll in ll_layer.findUsages(area_boundary):
                     # Filter list of lanelets for ones that are relevant
-                    if ll_relevant(ll.attributes):
+                    if is_ll_relevant(ll.attributes):
                         surrounding_lanelets[ll] = area_boundary
                 for ll in ll_layer.findUsages(area_boundary.invert()):
                     # Filter list of lanelets for ones that are relevant
-                    if ll_relevant(ll.attributes):
+                    if is_ll_relevant(ll.attributes):
                         surrounding_lanelets[ll] = area_boundary.invert()
 
             # If more than one lanelets have been found, write a warning to log
@@ -380,7 +381,7 @@ class DataHandler():
 
     def find_one_sided_neighbors(self, lanelet, ls, orientation):
         ll_layer = self.map_lanelet.laneletLayer
-        nbrs = {ll for ll in ll_layer.findUsages(ls) if ll_relevant(ll.attributes)}
+        nbrs = {ll for ll in ll_layer.findUsages(ls) if is_ll_relevant(ll.attributes)}
         nbrs.discard(lanelet)
         nbrs = {ll for ll in nbrs if not geo.overlaps2d(ll, lanelet)}
         surrounding_lls_left = self.neighbor_next_to_area(ls)
@@ -439,7 +440,7 @@ class DataHandler():
                 bs.againstBehavior.reservation[0].attributes.pedestrian = True
 
                 for link_ll in self.graph.conflicting(ll):
-                    if ll_relevant(link_ll.attributes) and geo.intersectCenterlines2d(link_ll, ll):
+                    if is_ll_relevant(link_ll.attributes) and geo.intersectCenterlines2d(link_ll, ll):
 
                         if not link_ll == bs.ref_lanelet:
                             bs.alongBehavior.reservation[0].attributes.add_link(link_ll.id)
