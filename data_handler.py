@@ -8,7 +8,7 @@ import util
 from lanelet2.core import LineString3d, getId
 from constants import LONG_BDR_TAGS, LONG_BDR_DICT
 from geometry_derivation import make_orth_bounding_box, find_flush_bdr, find_line_insufficient
-from behavior_derivation import distinguish_lat_boundary
+from behavior_derivation import distinguish_lat_boundary_5
 import constants
 import lanelet2.geometry as geo
 from bssd.core import _types as tp
@@ -77,11 +77,15 @@ class DataHandler():
 
         # Perform derivation of behavior space from current lanelet
         logger.debug(f'Derivation of longitudinal boundary for along behavior')
-        fwd_ls = self.get_long_bdr(ll.leftBound[0], ll.rightBound[0], 'fwd' == direction, ls)
+        alg_ls, alg_ref = self.get_long_bdr(ll.leftBound[0], ll.rightBound[0], 'fwd' == direction, ls)
         logger.debug(f'Derivation of longitudinal boundary for against behavior')
-        bwd_ls = self.get_long_bdr(ll.leftBound[-1], ll.rightBound[-1], 'bwd' == direction, ls)
+        agst_ls, agst_ref = self.get_long_bdr(ll.leftBound[-1], ll.rightBound[-1], 'bwd' == direction, ls)
         # derive abs behavior
-        new_bs = self.map_bssd.create_placeholder(ll, fwd_ls, bwd_ls)
+        new_bs = self.map_bssd.create_placeholder(ll, alg_ls, agst_ls)
+        if alg_ref:
+            new_bs.alongBehavior.longBound.ref_line = alg_ref
+        if agst_ref:
+            new_bs.alongBehavior.longBound.ref_line = agst_ref
         logger.debug(f'Created Behavior Space {new_bs.id}')
         self.derive_behavior(new_bs, ll)
 
@@ -89,10 +93,10 @@ class DataHandler():
         # about already derived boundaries
         for successor in self.graph.following(ll):
             if successor.id in self.relevant_lanelets:
-                self.ll_recursion(successor.id, 'fwd', bwd_ls)
+                self.ll_recursion(successor.id, 'fwd', agst_ls)
         for predecessor in self.graph.previous(ll):
             if predecessor.id in self.relevant_lanelets:
-                self.ll_recursion(predecessor.id, 'bwd', fwd_ls)
+                self.ll_recursion(predecessor.id, 'bwd', alg_ls)
 
     def find_usages_and_remove_self(self, ll, side):
 
@@ -125,12 +129,14 @@ class DataHandler():
                 ll.attributes['participant:bicycle'] = 'yes'
                 self.relevant_lanelets.append(ll.id)
 
-    def get_long_bdr(self, pt_left, pt_right, use_previous, previous_id):
+    def get_long_bdr(self, pt_left, pt_right, use_previous, previous):
         ls = None
+        ref_line = None
 
         if use_previous:
             # Use previously created linestring
-            ls = previous_id
+            ls = previous
+            ref_line = ls.id
             logger.debug(f'Using linestring from successor/predecessor')
         elif pt_left.id == pt_right.id:
             # No longitudinal boundary exists
@@ -161,12 +167,14 @@ class DataHandler():
 
             if lines['exact'][0]:
                 ls = self.map_lanelet.lineStringLayer[lines['exact'][0]]
+                ref_line = ls.id
                 logger.debug(f'Using existing line with ID {ls.id} as long. boundary')
             # Create new line, if necessary
             else:
                 if any(v[0] for k, v in lines.items()):
                     matching_case = [k for k, v in lines.items() if v[0]]
                     pt_pairs = lines[matching_case[0]][1]
+                    ref_line = lines[matching_case[0]][0]
                     logger.debug(
                         f'Using existing line with ID {lines[matching_case[0]][0]} partially for long. boundary')
                 else:
@@ -178,7 +186,7 @@ class DataHandler():
                 logger.debug(f'Created new linestring as longitudinal boundary with ID {ls.id}')
                 self.map_lanelet.add(ls)
 
-        return ls
+        return ls, ref_line
 
     def find_inside_lines(self, pt_left, pt_right):
 
@@ -206,13 +214,23 @@ class DataHandler():
 
     def derive_behavior(self, bs, lanelet):
 
-        logger.debug(f'Deriving CrossingType and parking_only for alongBehavior left/againstBehavior right')
+        logger.debug(f'Deriving behavioral demand of lateral boundary of alongBehavior (left,'
+                     f' ID:{bs.alongBehavior.leftBound.id}) and '
+                     f'againstBehavior (right, ID:ID:{bs.againstBehavior.rightBound.id})')
         self.derive_behavior_bdr_lat(bs.alongBehavior, bs.againstBehavior, 'left')
-        logger.debug(f'Deriving CrossingType and parking_only for againstBehavior left/alongBehavior right')
+        logger.debug(f'Deriving behavioral demand of lateral boundary of alongBehavior (left,'
+                     f' ID:{bs.againstBehavior.leftBound.id}) and '
+                     f'againstBehavior (right, ID:ID:{bs.alongBehavior.rightBound.id})')
         self.derive_behavior_bdr_lat(bs.againstBehavior, bs.alongBehavior, 'right')
 
-        self.derive_behavior_bdr_long(bs.alongBehavior, lanelet)
-        self.derive_behavior_bdr_long(bs.againstBehavior, lanelet)
+        if bs.alongBehavior.longBound:
+            logger.debug(f'Deriving behavioral demand of longitudinal boundary of'
+                         f' alongBehavior (ID:{bs.alongBehavior.longBound.id})')
+            self.derive_behavior_bdr_long(bs.alongBehavior, lanelet)
+        if bs.againstBehavior.longBound:
+            logger.debug(f'Deriving behavioral demand of longitudinal boundary of'
+                         f' againstBehavior (ID:{bs.againstBehavior.longBound.id})')
+            self.derive_behavior_bdr_long(bs.againstBehavior, lanelet)
 
         if 'own_speed_limit' not in lanelet.attributes and 'other_speed_limit' not in lanelet.attributes:
             self.derive_segment_speed_limit(lanelet)
@@ -223,7 +241,8 @@ class DataHandler():
 
     def derive_behavior_bdr_lat(self, behavior_a, behavior_b, side):
 
-        cr = distinguish_lat_boundary(behavior_a.leftBound.lineString.attributes, side)
+        logger.debug(f'Deriving CrossingType for linestring {behavior_a.leftBound.lineString.id}.')
+        cr = distinguish_lat_boundary_5(behavior_a.leftBound.lineString.attributes, side)
         # Todo: adjust to new possiblities in core
         if cr:
             behavior_a.leftBound.attributes.crossing = behavior_b.rightBound.attributes.crossing = cr
@@ -241,19 +260,19 @@ class DataHandler():
 
     def derive_behavior_bdr_long(self, behavior, ll):
 
-        ll_layer = self.map_lanelet.laneletLayer
-        types = ['pedestrian_marking', 'zebra_marking']
+        types = ['zebra_marking']
         subtypes = ['crosswalk']
-        if behavior.longBound and behavior.longBound.ref_line:
-            ls = behavior.longBound.ref_line
-            ls = self.map_lanelet.lineStringLayer[ls]
+        if behavior.longBound.ref_line:
+            ls = self.map_lanelet.lineStringLayer[behavior.longBound.ref_line]
             if ls.attributes['type'] in types:
-                set_from_ls = set(ll_layer.findUsages(ls) + ll_layer.findUsages(ls.invert()))
-                set_from_conflict = set(self.graph.conflicting(ll))
-                set_common = set_from_ls ^ set_from_conflict
+                zebra_lanelet = next((lanelet for lanelet in self.graph.conflicting(ll)
+                                      if geo.intersectCenterlines2d(lanelet, ll)
+                                      and lanelet.attributes['subtype'] in subtypes), None)
 
-                if any(lanelet.attributes['subtype'] in subtypes for lanelet in set_common):
+                if zebra_lanelet:
                     behavior.longBound.attributes.no_stagnant_traffic = True
+                    logger.debug(f'For linestring {ls.id} attribute no_stagnant_traffic=yes has been derived '
+                                 f'due to overlapping lanelet {zebra_lanelet.id}.')
 
     def derive_segment_speed_limit(self, lanelet):
 
@@ -273,7 +292,7 @@ class DataHandler():
                 self.assign_sl_along(other_direction)
 
                 # distinguish passability between driving directions
-                if not distinguish_lat_boundary(ll.leftBound.attributes, 'left') == 'not_possible':
+                if not distinguish_lat_boundary_5(ll.leftBound.attributes, 'left') == 'not_possible':
                     # no structural separation
                     ll_other_left = list(other_direction[max(other_direction.keys())])[0]
                     self.assign_sl_against(other_direction, ll)
