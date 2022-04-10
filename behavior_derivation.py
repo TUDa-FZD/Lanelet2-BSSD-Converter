@@ -10,7 +10,7 @@ LINE = {'solid': ct.PROHIBITED,
         'solid_dashed': {'left': ct.ALLOWED, 'right': ct.PROHIBITED}
         }
 
-lane_mark = {'curbstone': {'low': ct.ALLOWED,
+lane_mark = {'curbstone': {'low': ct.PROHIBITED,
                            'high': ct.NOT_POSSIBLE
                            },
              'line_thick': LINE,

@@ -1,15 +1,10 @@
-from lanelet2.core import AttributeMap, TrafficLight, Lanelet, LineString3d, Point2d, Point3d, getId, \
-    LaneletMap, BoundingBox2d, BasicPoint2d
-import constants
+from lanelet2.core import getId
 import logging
 from bssd.core import mutable
-import bssd
-import osmium
-from bssd.core._types import CrossingType as ct
 logger = logging.getLogger('framework.classes')
 
 
-class bssdClass:
+class BssdMap:
 
     def __init__(self):
         self.BehaviorSpaceLayer = {}
@@ -22,27 +17,27 @@ class bssdClass:
         for attr, value in self.__dict__.items():
             yield attr, value
 
-    def add(self, bssdObject):
+    def add(self, bssd_object):
         # For a given instance of a BSSD class, this function adds that instance
         # to the respective layer of the BSSD map. Furthermore it looks for all subclasses
         # and adds them to their respective classe, too.
 
-        if isinstance(bssdObject, BehaviorSpace):
-            self.BehaviorSpaceLayer[bssdObject.id] = bssdObject
-        elif isinstance(bssdObject, Behavior):
-            self.BehaviorLayer[bssdObject.id] = bssdObject
-        elif isinstance(bssdObject, Reservation):
-            self.ReservationLayer[bssdObject.id] = bssdObject
-        elif isinstance(bssdObject, BoundaryLat):
-            self.BoundaryLatLayer[bssdObject.id] = bssdObject
-        elif isinstance(bssdObject, BoundaryLong):
-            self.BoundaryLongLayer[bssdObject.id] = bssdObject
+        if isinstance(bssd_object, BehaviorSpace):
+            self.BehaviorSpaceLayer[bssd_object.id] = bssd_object
+        elif isinstance(bssd_object, Behavior):
+            self.BehaviorLayer[bssd_object.id] = bssd_object
+        elif isinstance(bssd_object, Reservation):
+            self.ReservationLayer[bssd_object.id] = bssd_object
+        elif isinstance(bssd_object, BoundaryLat):
+            self.BoundaryLatLayer[bssd_object.id] = bssd_object
+        elif isinstance(bssd_object, BoundaryLong):
+            self.BoundaryLongLayer[bssd_object.id] = bssd_object
         else:
-            logger.warning(f'Non-BSSD-Object (ID: {bssdObject.id}) attempted to add to map_bssd')
+            logger.warning(f'Non-BSSD-Object (ID: {bssd_object.id}) attempted to add to map_bssd')
 
-        return bssdObject
+        return bssd_object
 
-    def create_placeholder(self, lanelet=None, bdr_agst=None, bdr_alg=None):
+    def create_placeholder(self, lanelet=None, bdr_alg=None, bdr_agst=None):
         # Function that calls code to create empty placeholders for all objects that
         # are necessary for a behavior space in the BSSD.
 
@@ -72,7 +67,7 @@ class bssdClass:
         return Behavior(bdr_left=b_left, bdr_right=b_right, bdr_long=b_long, res=res)
 
 
-class BSSD_element():
+class BssdElement:
 
     def __init__(self):
         self.attributes = None
@@ -89,7 +84,7 @@ class BSSD_element():
         self.attributes.id = self.id
 
 
-class BehaviorSpace(BSSD_element):
+class BehaviorSpace(BssdElement):
 
     def __init__(self, b_agst=None, b_alg=None, ll=None):
         super().__init__()
@@ -130,7 +125,7 @@ class BehaviorSpace(BSSD_element):
         self.attributes.add_lanelet(ll.id)
 
 
-class Behavior(BSSD_element):
+class Behavior(BssdElement):
 
     def __init__(self, res=None, bdr_long=None, bdr_left=None, bdr_right=None):
         super().__init__()
@@ -185,7 +180,7 @@ class Behavior(BSSD_element):
         self.attributes.add_reservation(res.id)
 
 
-class Reservation(BSSD_element):
+class Reservation(BssdElement):
 
     def __init__(self):
         super().__init__()
@@ -201,7 +196,7 @@ class Reservation(BSSD_element):
         return id_str + b
 
 
-class BoundaryLat(BSSD_element):
+class BoundaryLat(BssdElement):
 
     def __init__(self, bdr=None):
         super().__init__()
@@ -224,7 +219,7 @@ class BoundaryLat(BSSD_element):
         self.attributes.add_boundary(ls.id)
 
 
-class BoundaryLong(BSSD_element):
+class BoundaryLong(BssdElement):
 
     def __init__(self, bdr=None):
         super().__init__()
@@ -244,34 +239,3 @@ class BoundaryLong(BSSD_element):
     def assign_ls(self, ls):
         self.lineString = ls
         self.attributes.add_boundary(ls.id)
-
-
-# def create_placeholder(lanelet=None, bdr_agst=None, bdr_alg=None):
-#     # Function that calls code to create empty placeholders for all objects that
-#     # are necessary for a behavior space in the BSSD.
-#
-#     if not lanelet:
-#         lB_ll = None
-#         rB_ll = None
-#     else:
-#         lB_ll = lanelet.leftBound
-#         rB_ll = lanelet.rightBound
-#
-#     behavior_agst = create_behavior(lB_ll, rB_ll, bdr_agst)
-#     behavior_alg = create_behavior(rB_ll, lB_ll, bdr_alg)
-#
-#     return BehaviorSpace(b_agst=behavior_agst, b_alg=behavior_alg, ll=lanelet)
-#
-#
-# def create_behavior(leftBdr, rightBdr, longBdr):
-#
-#     b_right = BoundaryLat(rightBdr)
-#     b_left = BoundaryLat(leftBdr)
-#     res = Reservation()
-#
-#     if longBdr:
-#         b_long = BoundaryLong(longBdr)
-#     else:
-#         b_long = None
-#
-#     return Behavior(bdr_left=b_left, bdr_right=b_right, bdr_long=b_long, res=res)

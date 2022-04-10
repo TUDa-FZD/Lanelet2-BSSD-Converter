@@ -1,6 +1,8 @@
 import os
 import osmium
 import lanelet2
+from lanelet2 import traffic_rules
+
 from lanelet2.projection import UtmProjector
 import tempfile as tf
 

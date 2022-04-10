@@ -20,7 +20,7 @@ def framework():
     # ----------- INPUT --------------
     # Load example file from lanelet2
     # filename = args.filename
-    filename = "res/mapping_example.osm"
+    filename = "res/DA_Nieder-Ramst-Mühlstr-Hochstr.osm"
 
     logger, log_file = setup_logger(filename)
 
@@ -40,8 +40,6 @@ def framework():
 
     logger.info(f'Start preprocessing. Finding relevant lanelets and distinguishing bicycle_lanes')
     handler = DataHandler(map_ll)
-    handler.find_relevant_lanelets()
-    handler.get_routinggraph_all()
     end = time.perf_counter()
     logger.info(f"Preprocessing completed, relevant lanelets detected and RoutingGraph created."
                 f"\nElapsed time: {round(end - start, 2)}")
