@@ -1,9 +1,10 @@
 import os
 import time
+import argparse
+
 from io_handler import IoHandler
 from data_handler import DataHandler
 from preprocessing import Preprocessing
-import argparse
 from util import edit_log_file, setup_logger
 
 

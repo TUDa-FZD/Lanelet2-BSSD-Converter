@@ -1,7 +1,10 @@
-import constants
 import logging
+
 import lanelet2
 from lanelet2.core import AttributeMap, Lanelet
+
+import constants
+
 logger = logging.getLogger(__name__)
 
 

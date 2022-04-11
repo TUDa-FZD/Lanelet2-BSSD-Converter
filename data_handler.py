@@ -1,16 +1,19 @@
-import BSSD_elements
-from preprocessing import is_ll_relevant
 import logging
+from collections import defaultdict
+
 import lanelet2
 from lanelet2.geometry import distance as dist
-import util
 from lanelet2.core import LineString3d, getId, SpeedLimit
-from constants import LONG_BDR_TAGS, LONG_BDR_DICT
-from geometry_derivation import make_orth_bounding_box, find_flush_bdr, find_line_insufficient
-from behavior_derivation import distinguish_lat_boundary
 import lanelet2.geometry as geo
 from bssd.core import _types as tp
-from collections import defaultdict
+
+from preprocessing import is_ll_relevant
+import BSSD_elements
+from geometry_derivation import make_orthogonal_bounding_box, find_flush_bdr, find_line_insufficient
+from behavior_derivation import derive_crossing_type_for_lat_boundary
+import util
+from constants import LONG_BDR_TAGS, LONG_BDR_DICT
+
 
 logger = logging.getLogger('framework.data_handler')
 
@@ -20,12 +23,12 @@ def is_zebra_and_intersecting(ll, ref_ll):
     Returns boolean variable after checking whether two lanelets are having intersection
     centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
-        Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+    Parameters:
+        ll (lanelet):The lanelet that is being checked.
+        ref_ll (lanelet):The lanelet on which the behavior spaced is based.
 
-        Returns:
-            Bool (bool):True if conditions are met, otherwise False.
+    Returns:
+        Bool (bool):True if conditions are met, otherwise False.
     '''
     if geo.intersectCenterlines2d(ll, ref_ll) and not is_ll_relevant(ll.attributes) and \
             ll.leftBound.attributes['type'] == ll.rightBound.attributes['type'] == 'zebra_marking':
@@ -39,12 +42,12 @@ def join_dictionaries(dict_a, dict_b):
     Joins two dictionaries. Intended for dictionaries with partially mutual keys. This way the values of
     the two dictionaries for the same key are being combined in a list. This function is used for the segment search.
 
-        Parameters:
-            dict_a (defaultdict):First dictionary.
-            dict_b (defaultdict):Second dictionary.
+    Parameters:
+        dict_a (defaultdict):First dictionary.
+        dict_b (defaultdict):Second dictionary.
 
-        Returns:
-            dict (defaultdict):Combined defaultdict.
+    Returns:
+        dict (defaultdict):Combined defaultdict.
     '''
     for d in (dict_a, dict_b):
         for key, value in d.items():
@@ -261,7 +264,7 @@ class DataHandler:
             ls (bool):True if conditions are met, otherwise False.
         '''
         #### perhaps use geometry.inside
-        searchBox = make_orth_bounding_box(pt_left, pt_right)
+        searchBox = make_orthogonal_bounding_box(pt_left, pt_right)
 
         near_ls = [ls for ls in self.map_lanelet.lineStringLayer.search(searchBox) if
                    not pt_left in ls or not pt_right in ls]
@@ -341,8 +344,9 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
         logger.debug(f'Deriving CrossingType for linestring {behavior_a.leftBound.lineString.id}.')
-        cr = distinguish_lat_boundary(behavior_a.leftBound.lineString.attributes, side)
+        cr = derive_crossing_type_for_lat_boundary(behavior_a.leftBound.lineString.attributes, side)
         # Todo: adjust to new possiblities in core
         if cr:
             behavior_a.leftBound.attributes.crossing = behavior_b.rightBound.attributes.crossing = cr
@@ -421,7 +425,7 @@ class DataHandler:
                 self.assign_sl_along(other_direction)
 
                 # distinguish passability between driving directions
-                if not distinguish_lat_boundary(ll.leftBound.attributes, 'left') == 'not_possible':
+                if not derive_crossing_type_for_lat_boundary(ll.leftBound.attributes, 'left') == 'not_possible':
                     # no structural separation
                     ll_other_left = list(other_direction[max(other_direction.keys())])[0]
                     self.assign_sl_against(other_direction, ll)

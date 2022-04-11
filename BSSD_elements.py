@@ -1,8 +1,10 @@
 from __future__ import annotations
-from lanelet2.core import getId
 import logging
-from bssd.core import mutable
+
+from lanelet2.core import getId
 from lanelet2.core import Lanelet, LineString2d, LineString3d
+from bssd.core import mutable
+
 logger = logging.getLogger('framework.classes')
 
 
