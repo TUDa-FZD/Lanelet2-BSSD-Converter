@@ -1,7 +1,8 @@
 import os
 import time
-import io_data
+from io_handler import IoHandler
 from data_handler import DataHandler
+from preprocessing import Preprocessing
 import argparse
 from util import edit_log_file, setup_logger
 
@@ -20,7 +21,7 @@ def framework():
     # ----------- INPUT --------------
     # Load example file from lanelet2
     # filename = args.filename
-    filename = "res/DA_Nieder-Ramst-Mühlstr-Hochstr.osm"
+    filename = "res/lanelet2_DA_Alexanderstr_Hügelstr.osm"
 
     logger, log_file = setup_logger(filename)
 
@@ -28,7 +29,7 @@ def framework():
     pos_ids_file_path = "/home/jannik/Documents/WS_Lanelet2/src/lanelet2/lanelet2_python/scripts/make_ids_positive.py"
     os.system(f"python3 {pos_ids_file_path} -i {example_file}")
 
-    io = io_data.io_handler(example_file)
+    io = IoHandler(example_file)
     map_ll = io.load_map()
     orig_nr_ls = len(map_ll.lineStringLayer)
 
@@ -37,9 +38,15 @@ def framework():
     # ------- PREPROCESSING --------------
     # Make list with all IDs of lanelets that are relevant
     start = time.perf_counter()
-
     logger.info(f'Start preprocessing. Finding relevant lanelets and distinguishing bicycle_lanes')
-    handler = DataHandler(map_ll)
+
+    # Perform preprocessing steps: Create RoutingGraph and find relevant lanelets
+    preprocessor = Preprocessing(map_ll)
+    relevant_lanelets = preprocessor.find_relevant_lanelets()
+    routing_graph = preprocessor.get_routing_graph_all()
+
+    # Setup main data handler to perform behavior space derivation for the given Lanelet2 map
+    handler = DataHandler(preprocessor.map_lanelet, relevant_lanelets, routing_graph)
     end = time.perf_counter()
     logger.info(f"Preprocessing completed, relevant lanelets detected and RoutingGraph created."
                 f"\nElapsed time: {round(end - start, 2)}")

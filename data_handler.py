@@ -1,5 +1,5 @@
 import BSSD_elements
-from preprocessing import is_ll_relevant, is_bicycle_ll_relevant
+from preprocessing import is_ll_relevant
 import logging
 import lanelet2
 from lanelet2.geometry import distance as dist
@@ -25,7 +25,7 @@ def is_zebra_and_intersecting(ll, ref_ll):
             ref_ll (lanelet):The lanelet on which the behavior spaced is based.
 
         Returns:
-            (bool):True if conditions are met, otherwise False.
+            Bool (bool):True if conditions are met, otherwise False.
     '''
     if geo.intersectCenterlines2d(ll, ref_ll) and not is_ll_relevant(ll.attributes) and \
             ll.leftBound.attributes['type'] == ll.rightBound.attributes['type'] == 'zebra_marking':
@@ -44,7 +44,7 @@ def join_dictionaries(dict_a, dict_b):
             dict_b (defaultdict):Second dictionary.
 
         Returns:
-            (defaultdict):Combined defaultdict.
+            dict (defaultdict):Combined defaultdict.
     '''
     for d in (dict_a, dict_b):
         for key, value in d.items():
@@ -55,158 +55,96 @@ def join_dictionaries(dict_a, dict_b):
 
 class DataHandler:
     """
-        A class that contains the map data of Lanelet2 objects as well as BSSD objects.
-        Based on that it contains multiple methods that use that data to
-        loop through the map, derive behavior and more.
+    A class that contains the map data of Lanelet2 objects as well as BSSD objects.
+    Based on that it contains multiple methods that use that data to
+    loop through the map, derive behavior and more.
 
-        Attributes
-        ----------
-            map_lanelet : LaneletMap
-                Layered lanelet2 map that contains all lanelet2 objects of a loaded map.
-            map_bssd : BssdMap
-                Layered bssd map that contains all bssd objects
-            relevant_lanelets : list
-                age of the person
-            graph : RoutingGraph
-                Graph for the lanelet map that is adjusted to contain all the lanelets instead of
-                being focused on one traffic participant
-            traffic_rules : traffic_rules
-                traffic rules object from lanelet2 for participant = vehicle
+    Attributes
+    ----------
+        map_lanelet : LaneletMap
+            Layered lanelet2 map that contains all lanelet2 objects of a loaded map.
+        map_bssd : BssdMap
+            Layered bssd map that contains all bssd objects
+        relevant_lanelets : list
+            age of the person
+        graph : RoutingGraph
+            Graph for the lanelet map that is adjusted to contain all the lanelets instead of
+            being focused on one traffic participant
+        traffic_rules : traffic_rules
+            traffic rules object from lanelet2 for participant = vehicle
 
-        Methods
-        -------
-            __init__(map_lanelet):
-                Initiates class instance by getting lanelet map object. Creates empty bssd map object.
-                Creates RoutingGraph and also calls function to find relevant lanelets.
-            get_routinggraph_all():
-                creating RoutingGraph object that contains every lanelet of a map
-            find_relevant_lanelets():
-                Find for bssd relevant lanelets in lanelet2 map.
-            get_relevant_bicycle_lls():
-                Distinguishes relevance of bicycle lanelets and returns list of relevant bicycle lanelets.
-            find_usages_and_remove_self(additional=""):
-                XXXXXXXXXX
-            recursive_loop(ll_id, direction=None, ls=None):
-                Recursively loops through lanelets in a map. Needs to be called from a seperate place
-                to make sure every lanelet is being considered.
-            get_long_bdr(pt_left, pt_right, use_previous, previous):
-                For end-/startpoints of lateral boundaries of lanelet this function searches for potential
-                linestrings that can be used to determine the linestring of the correspondent behavior space.
-                Returns a found or newly created linetring.
-            find_inside_lines(bs, lanelet):
-                Searches for linestrings that are not sharing any points with the points of a laneletes lateral boundaries.
-            derive_behavior(bs, lanelet):
-                Main function for behavior derivation. Calls multiple subfunctions (see following) to derive
-                multiple behavioral attributes.
-            derive_behavior_bdr_lat(behavior_a, behavior_b, side):
-                Derives CrossingType through comparing linestring types with a predefined dictionary.
-            derive_behavior_bdr_long(behavior, ll):
-                Searches for conflicting zebra lanelets to derive the no_stagnant_traffic attribute.
-            derive_segment_speed_limit(lanelet):
-                Starting from one lanelet this function auto detects all lanelets of the same segment and
-                cross assigns speed limits for behaviors against reference direction.
-            find_adjacent(current_ll, level, prev_ll=None):
-                Recursively searches for every lanelet of the same segment but for the same reference
-                driving direction. Returns dictionary with lanelets assigned to a respective level on the roadway.
-            assign_sl_along(segment):
-                Temporarily assigns lanelet speed limit to lanelet attributes for every lanelet in a segment.
-            assign_sl_against(segment, other_ll=None):
-                Temporarily assigns lanelet speed limit for behavior against reference direction distinguishing between
-                structurally divided driving directions.
-            find_one_sided_neighbors(lanelet, ls, orientation):
-                Searches for neighbors of a lanelet either through direct neighborhood or next to a keepout area.
-            neighbor_next_to_area(ls):
-                For a given linestring searches for keepout areas and returns a list with every lanelet
-                surrounding this area besides of the lanelet from which the search has been started.
-            filter_for_direction(sourrounding_lanelets, ref_lanelet, ref_ls, orientation):
-                Used to filter the list of lanelets that surround an area. The goal is to find lanelets that belong to
-                the same segment of a given lanelet.
-            are_linestrings_orthogonal(ls1, ls2, pts):
-                Compares two linestrings and a newly created linestring inbetween them in all ways for orthogonality.
-            derive_conflicts(bs):
-                Derives conflicts of a given lanelet. If zebra lanelets are found the behavior space gets the attribute
-                of external reservation. Furthermore, reservation links are being set.
-            find_neighbor_areas(ls, subtype=None):
-                Finds direct neighbors of an area to set the reservation links at a zebra crossing.
+    Methods
+    -------
+        __init__(map_lanelet):
+            Initiates class instance by getting lanelet map object. Creates empty bssd map object.
+            Creates RoutingGraph and also calls function to find relevant lanelets.
+        recursive_loop(ll_id, direction=None, ls=None):
+            Recursively loops through lanelets in a map. Needs to be called from a seperate place
+            to make sure every lanelet is being considered.
+        get_long_bdr(pt_left, pt_right, use_previous, previous):
+            For end-/startpoints of lateral boundaries of lanelet this function searches for potential
+            linestrings that can be used to determine the linestring of the correspondent behavior space.
+            Returns a found or newly created linetring.
+        find_inside_lines(bs, lanelet):
+            Searches for linestrings that are not sharing any points with the points of a laneletes lateral boundaries.
+        derive_behavior(bs, lanelet):
+            Main function for behavior derivation. Calls multiple subfunctions (see following) to derive
+            multiple behavioral attributes.
+        derive_behavior_bdr_lat(behavior_a, behavior_b, side):
+            Derives CrossingType through comparing linestring types with a predefined dictionary.
+        derive_behavior_bdr_long(behavior, ll):
+            Searches for conflicting zebra lanelets to derive the no_stagnant_traffic attribute.
+        derive_segment_speed_limit(lanelet):
+            Starting from one lanelet this function auto detects all lanelets of the same segment and
+            cross assigns speed limits for behaviors against reference direction.
+        find_adjacent(current_ll, level, prev_ll=None):
+            Recursively searches for every lanelet of the same segment but for the same reference
+            driving direction. Returns dictionary with lanelets assigned to a respective level on the roadway.
+        assign_sl_along(segment):
+            Temporarily assigns lanelet speed limit to lanelet attributes for every lanelet in a segment.
+        assign_sl_against(segment, other_ll=None):
+            Temporarily assigns lanelet speed limit for behavior against reference direction distinguishing between
+            structurally divided driving directions.
+        find_one_sided_neighbors(lanelet, ls, orientation):
+            Searches for neighbors of a lanelet either through direct neighborhood or next to a keepout area.
+        neighbor_next_to_area(ls):
+            For a given linestring searches for keepout areas and returns a list with every lanelet
+            surrounding this area besides of the lanelet from which the search has been started.
+        filter_for_direction(sourrounding_lanelets, ref_lanelet, ref_ls, orientation):
+            Used to filter the list of lanelets that surround an area. The goal is to find lanelets that belong to
+            the same segment of a given lanelet.
+        are_linestrings_orthogonal(ls1, ls2, pts):
+            Compares two linestrings and a newly created linestring inbetween them in all ways for orthogonality.
+        derive_conflicts(bs):
+            Derives conflicts of a given lanelet. If zebra lanelets are found the behavior space gets the attribute
+            of external reservation. Furthermore, reservation links are being set.
+        find_neighbor_areas(ls, subtype=None):
+            Finds direct neighbors of an area to set the reservation links at a zebra crossing.
     """
 
-    def __init__(self, map_lanelet):
+    def __init__(self, map_lanelet, relevant_lanelets, routing_graph):
         self.map_lanelet = map_lanelet
         self.map_bssd = BSSD_elements.BssdMap()
-        self.relevant_lanelets = self.find_relevant_lanelets()
+        self.relevant_lanelets = relevant_lanelets
         self.traffic_rules = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
                                                            lanelet2.traffic_rules.Participants.Vehicle)
-        self.graph = self.get_routinggraph_all()
+        self.graph = routing_graph
 
-    # ----------- preprocessing -------------
-    def get_routinggraph_all(self):
+    # -----------------------------------------------
+    # -------------------- loop ---------------------
+    # -----------------------------------------------
+    def recursive_loop(self, ll_id, direction=None, ls=None):
         '''
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
-            Parameters:
-                ll (lanelet):The lanelet that is being checked.
-                ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
 
-            Returns:
-                (bool):True if conditions are met, otherwise False.
+        Returns:
+            (bool):True if conditions are met, otherwise False.
         '''
-        edited = {}
-
-        for ll in self.map_lanelet.laneletLayer:
-            if not self.traffic_rules.canPass(ll):
-                if 'participant:vehicle' in ll.attributes:
-                    edited[ll] = ll.attributes['participant:vehicle']
-                else:
-                    edited[ll] = None
-                ll.attributes['participant:vehicle'] = 'yes'
-
-        graph = lanelet2.routing.RoutingGraph(self.map_lanelet, self.traffic_rules)
-
-        for ll, value in edited.items():
-            if value:
-                ll.attributes['participant:vehicle'] = value
-            else:
-                del ll.attributes['participant:vehicle']
-
-        return graph
-
-    def find_relevant_lanelets(self):
-        relevant_lanelets = [item.id for item in self.map_lanelet.laneletLayer if is_ll_relevant(item.attributes)]
-        return relevant_lanelets + self.get_relevant_bicycle_lls()
-
-    def get_relevant_bicycle_lls(self):
-
-        list_bicycle = [item for item in self.map_lanelet.laneletLayer if item.attributes['subtype'] == 'bicycle_lane']
-        relevant_bicycle_list = []
-
-        for ll in list_bicycle:
-            nbrs_left = self.find_usages_and_remove_self(ll, 'l')
-            nbrs_right = self.find_usages_and_remove_self(ll, 'r')
-
-            if is_bicycle_ll_relevant(nbrs_left, ll.leftBound.attributes) \
-                    or is_bicycle_ll_relevant(nbrs_right, ll.rightBound.attributes):
-                logger.debug(f' Lanelet {ll.id} identified as relevant bicycle lane')
-                ll.attributes['relevant_bicycle_lane'] = 'yes'
-
-                relevant_bicycle_list.append(ll.id)
-
-        return relevant_bicycle_list
-
-    def find_usages_and_remove_self(self, ll, side):
-
-        nbrs = []
-        if side == 'r':
-            nbrs = self.map_lanelet.laneletLayer.findUsages(ll.rightBound)
-        elif side == 'l':
-            nbrs = self.map_lanelet.laneletLayer.findUsages(ll.leftBound)
-        nbrs.remove(ll)
-
-        return nbrs
-
-    # ----------- loop -------------
-    def recursive_loop(self, ll_id, direction=None, ls=None):
-
         ll = self.map_lanelet.laneletLayer[ll_id]
         # Remove current lanelet from list of relevant lanelets to keep track which lanelets still have to be done
         self.relevant_lanelets.remove(ll_id)
@@ -237,8 +175,21 @@ class DataHandler:
             if predecessor.id in self.relevant_lanelets:
                 self.recursive_loop(predecessor.id, 'bwd', alg_ls)
 
+    # -----------------------------------------------
     # ----------- longitudinal boundary -------------
+    # -----------------------------------------------
     def get_long_bdr(self, pt_left, pt_right, use_previous, previous):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         ls = None
         ref_line = None
 
@@ -298,7 +249,17 @@ class DataHandler:
         return ls, ref_line
 
     def find_inside_lines(self, pt_left, pt_right):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         #### perhaps use geometry.inside
         searchBox = make_orth_bounding_box(pt_left, pt_right)
 
@@ -321,9 +282,21 @@ class DataHandler:
 
         return {'insufficient_full': [None, None]}
 
+    # -----------------------------------------------
     # ------------ behavior derivation --------------
+    # -----------------------------------------------
     def derive_behavior(self, bs, lanelet):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         logger.debug(f'Deriving behavioral demand of lateral boundary of alongBehavior (left,'
                      f' ID:{bs.alongBehavior.leftBound.id}) and '
                      f'againstBehavior (right, ID:ID:{bs.againstBehavior.rightBound.id})')
@@ -353,9 +326,21 @@ class DataHandler:
 
         self.derive_conflicts(bs)
 
+    # -------------------------------------------------------------------
     # ------------ behavior derivation of lateral boundary --------------
+    # -------------------------------------------------------------------
     def derive_behavior_bdr_lat(self, behavior_a, behavior_b, side):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         logger.debug(f'Deriving CrossingType for linestring {behavior_a.leftBound.lineString.id}.')
         cr = distinguish_lat_boundary(behavior_a.leftBound.lineString.attributes, side)
         # Todo: adjust to new possiblities in core
@@ -373,9 +358,21 @@ class DataHandler:
         behavior_a.leftBound.attributes.parking_only = \
             behavior_b.rightBound.attributes.parking_only = parking_only
 
+    # ------------------------------------------------------------------------
     # ------------ behavior derivation of longitudinal boundary --------------
+    # ------------------------------------------------------------------------
     def derive_behavior_bdr_long(self, behavior, ll):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         types = ['zebra_marking']
         tr_pedestrian = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
                                                       lanelet2.traffic_rules.Participants.Pedestrian)
@@ -393,9 +390,21 @@ class DataHandler:
                     return
         logger.debug(f'No behavioral demand for longitudinal boundary detected.')
 
+    # ------------------------------------------------------------------------------------
     # ------------ derivation of speed limits for all lanelets of a segment --------------
+    # ------------------------------------------------------------------------------------
     def derive_segment_speed_limit(self, lanelet):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         own_direction = self.find_adjacent(lanelet, 0)
         first_opposing_lls = None
         self.assign_sl_along(own_direction)
@@ -429,6 +438,18 @@ class DataHandler:
             self.assign_sl_against(own_direction)
 
     def find_adjacent(self, current_ll, level, prev_ll=None):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
+
         # Find all lanelets that are lying right next to each other
         # condition is that they share there lateral boundary
 
@@ -451,6 +472,17 @@ class DataHandler:
         return lanelets_for_direction
 
     def assign_sl_along(self, segment):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         for level in segment.keys():
             for ll in segment[level]:
                 ll.attributes['own_speed_limit'] = str(round(self.traffic_rules.speedLimit(ll).speedLimit))
@@ -459,6 +491,17 @@ class DataHandler:
                     ll.attributes['own_speed_limit_link'] = str(speed_limit_objects[0].id)
 
     def assign_sl_against(self, segment, other_ll=None):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         for level in segment.keys():
             for ll in segment[level]:
                 if other_ll:
@@ -471,6 +514,17 @@ class DataHandler:
                         ll.attributes['other_speed_limit_link'] = ll.attributes['own_speed_limit_link']
 
     def find_one_sided_neighbors(self, lanelet, ls, orientation):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         ll_layer = self.map_lanelet.laneletLayer
         nbrs = {ll for ll in ll_layer.findUsages(ls) if is_ll_relevant(ll.attributes)}
         nbrs.discard(lanelet)
@@ -481,7 +535,17 @@ class DataHandler:
         return nbrs
 
     def neighbor_next_to_area(self, ls):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         ll_layer = self.map_lanelet.laneletLayer
 
         neighbor_areas = self.find_neighbor_areas(ls, 'keepout')
@@ -516,6 +580,20 @@ class DataHandler:
             return dict()
 
     def filter_for_direction(self, sourrounding_lanelets, ref_lanelet, ref_ls, orientation):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+
+        Parameters:
+            sourrounding_lanelets (lanelet):The lanelet that is being checked.
+            ref_lanelet (lanelet):The lanelet on which the behavior spaced is based.
+            ref_ls (lanelet):The lanelet on which the behavior spaced is based.
+            orientation (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+
+        '''
         list_for_direction = []
         for ll, ls in sourrounding_lanelets.items():
             angle = util.angle_between_lanelets(ll, ref_lanelet)
@@ -546,6 +624,17 @@ class DataHandler:
         return list_for_direction
 
     def are_linestrings_orthogonal(self, ls1, ls2, pts):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         pts_corrected = [self.map_lanelet.pointLayer[pt.id] for pt in pts]
         ls_connect = LineString3d(getId(), pts_corrected)
         angle_1 = util.angle_between_linestrings(ls1, ls_connect)
@@ -553,9 +642,21 @@ class DataHandler:
 
         return 80 < angle_1 < 100 and 80 < angle_2 < 100
 
+    # ---------------------------------------------------------------------------------
     # ------------ behavior derivation of reservation at zebra crossings --------------
+    # ---------------------------------------------------------------------------------
     def derive_conflicts(self, bs):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         # find all conflicting lanelets in RoutingGraph for lanelet of this behavior space
         for ll in self.graph.conflicting(bs.ref_lanelet):
             # filter this list for lanelets whose centerline are intersecting with the behavior spaces lanelet
@@ -585,6 +686,17 @@ class DataHandler:
                 break
 
     def find_neighbor_areas(self, ls, subtype=None):
+        '''
+        Returns boolean variable after checking whether two lanelets are having intersection
+        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+
+        Parameters:
+            ll (lanelet):The lanelet that is being checked.
+            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+        Returns:
+            ls (bool):True if conditions are met, otherwise False.
+        '''
         a_layer = self.map_lanelet.areaLayer
         neighbor_areas = set.union(set(a_layer.findUsages(ls)),
                                    set(a_layer.findUsages(ls.invert())))
