@@ -1,9 +1,12 @@
 import os
+import logging
 import tempfile as tf
 
 import osmium
 import lanelet2
 from lanelet2.projection import UtmProjector
+
+logger = logging.getLogger('framework.io_handler')
 
 
 class IoHandler:
@@ -41,8 +44,10 @@ class IoHandler:
         self.input_path = path
         if origin_coordinates:
             self.origin_coordinates = origin_coordinates
+            logger.debug(f'Using given coordinates {self.origin_coordinates} for origin of the projection.')
         else:
             self.autodetect_coordinates()
+            logger.debug(f'Automatically detected coordinates {self.origin_coordinates} for origin of the projection.')
         self.projector = UtmProjector(lanelet2.io.Origin(self.origin_coordinates[0], self.origin_coordinates[1]))
 
         self._tmp_dir = tf.TemporaryDirectory()
@@ -133,7 +138,9 @@ class IoHandler:
             file (path):Filename of the original map file. Output filename is based on it and extended by _BSSD.
         """
         data = data2 = ""
-        path_output = 'Output/' + file[:-4] + '_BSSD.osm'
+        # path_output = 'Output/' + file[:-4] + '_BSSD.osm'
+        path_output = file[:-4] + '_BSSD.osm'
+        logger.info(f'{path_output}')
 
         # Reading data from Lanelet2 file except the last line
         with open(self._tmp_ll_file) as fp:
@@ -171,6 +178,7 @@ class IoHandler:
             del ll.attributes['own_speed_limit_link']
             del ll.attributes['other_speed_limit_link']
 
+        logger.debug(f'All lanelet tags that were added within this framework succesfully removed.')
         # return the map
         return map_ll
 

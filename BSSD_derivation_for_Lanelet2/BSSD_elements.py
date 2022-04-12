@@ -290,9 +290,8 @@ class Behavior(BssdElement):
 
 
     def __str__(self):
-        # Print ID and
+        # Print ID
         id_str = 'id: ' + str(self.id)
-        # bs = ', id behavior space: ' + str(self.id_bs)
 
         return id_str
 

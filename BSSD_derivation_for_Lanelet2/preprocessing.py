@@ -3,7 +3,7 @@ import logging
 import lanelet2
 from lanelet2.core import AttributeMap, Lanelet
 
-import constants
+from . import constants
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +199,7 @@ def is_bicycle_ll_relevant(nbrs: list, bound_att: AttributeMap) -> bool:
         Returns:
             relevant (bool):True if bicycle lanelet is relevant according to the selected criteria.
     '''
+
     # First condition is that the lanelet has neighbors, if not, the bicycle lanelet is considered not to be on the
     # roadway. Second, neighbors are being checked themselves for relevance. It is otherwise possible that a bicycle
     # lanelet lies next to a walkway lanelet. The third condition is to check the linestring type that divides the

@@ -92,7 +92,8 @@ def setup_logger(file):
         log_file (path):Automatically created path the log file ('{map_name}+_BSSD.log').
     """
     # Creating file path for the log file based on the output filename of the map
-    log_file = 'Output/' + file[4:-4] + '_BSSD_derivation.log'
+    # log_file = 'Output/' + file[4:-4] + '_BSSD_derivation.log'
+    log_file = file[:-4] + '_BSSD_derivation.log'
     # setting up the basicconfig for the logging module to save log messages to file
     logging.basicConfig(filename=log_file,
                         level=logging.DEBUG,

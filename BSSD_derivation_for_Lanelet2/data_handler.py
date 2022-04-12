@@ -7,13 +7,12 @@ from lanelet2.core import LineString3d, getId, SpeedLimit
 import lanelet2.geometry as geo
 from bssd.core import _types as tp
 
-from preprocessing import is_ll_relevant
-import BSSD_elements
-from geometry_derivation import make_orthogonal_bounding_box, find_flush_bdr, find_line_insufficient
-from behavior_derivation import derive_crossing_type_for_lat_boundary
-import util
-from constants import LONG_BDR_TAGS, LONG_BDR_DICT
-
+from .preprocessing import is_ll_relevant
+from . import BSSD_elements
+from .geometry_derivation import make_orthogonal_bounding_box, find_flush_bdr, find_line_insufficient
+from .behavior_derivation import derive_crossing_type_for_lat_boundary
+from . import util
+from .constants import LONG_BDR_TAGS, LONG_BDR_DICT
 
 logger = logging.getLogger('framework.data_handler')
 
@@ -152,14 +151,14 @@ class DataHandler:
         # Remove current lanelet from list of relevant lanelets to keep track which lanelets still have to be done
         self.relevant_lanelets.remove(ll_id)
 
-        logger.debug(f'-----------------------------------------------')
+        logger.debug(f'----------------------------------------------------------------------------------------------')
         logger.debug(f'Derivation for Lanelet {ll_id}')
 
         # Perform derivation of behavior space from current lanelet
         logger.debug(f'Derivation of longitudinal boundary for along behavior')
-        alg_ls, alg_ref = self.get_long_bdr(ll.leftBound[0], ll.rightBound[0], 'fwd' == direction, ls)
+        alg_ls, alg_ref = self.get_long_bdr(ll.leftBound[0], ll.rightBound[0], 'along' == direction, ls)
         logger.debug(f'Derivation of longitudinal boundary for against behavior')
-        agst_ls, agst_ref = self.get_long_bdr(ll.leftBound[-1], ll.rightBound[-1], 'bwd' == direction, ls)
+        agst_ls, agst_ref = self.get_long_bdr(ll.leftBound[-1], ll.rightBound[-1], 'against' == direction, ls)
         # derive abs behavior
         new_bs = self.map_bssd.create_placeholder(ll, alg_ls, agst_ls)
         if alg_ref:
@@ -173,10 +172,10 @@ class DataHandler:
         # about already derived boundaries
         for successor in self.graph.following(ll):
             if successor.id in self.relevant_lanelets:
-                self.recursive_loop(successor.id, 'fwd', agst_ls)
+                self.recursive_loop(successor.id, 'along', agst_ls)
         for predecessor in self.graph.previous(ll):
             if predecessor.id in self.relevant_lanelets:
-                self.recursive_loop(predecessor.id, 'bwd', alg_ls)
+                self.recursive_loop(predecessor.id, 'against', alg_ls)
 
     # -----------------------------------------------
     # ----------- longitudinal boundary -------------
@@ -193,14 +192,17 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
+        # Initalize empty variables for the linestring and reference line
         ls = None
         ref_line = None
 
+        # Check different possible cases
         if use_previous:
             # Use previously created linestring
             ls = previous
             ref_line = ls.id
-            logger.debug(f'Using linestring from successor/predecessor')
+            logger.debug(f'Using linestring from successor/predecessor (ID: {ls.id})')
         elif pt_left.id == pt_right.id:
             # No longitudinal boundary exists
             logger.debug(f'Longitudinal boundary doesn\'t exist')
@@ -209,22 +211,22 @@ class DataHandler:
             # Check for existing lineStrings (e.g. stop_line)
             lines = LONG_BDR_DICT
 
-            lsList_pt_left = set(self.map_lanelet.lineStringLayer.findUsages(pt_left))
-            lsList_pt_right = set(self.map_lanelet.lineStringLayer.findUsages(pt_right))
+            ls_list_pt_left = set(self.map_lanelet.lineStringLayer.findUsages(pt_left))
+            ls_list_pt_right = set(self.map_lanelet.lineStringLayer.findUsages(pt_right))
 
-            mutual_ls = set.intersection(lsList_pt_left, lsList_pt_right)
-            lsList_pt_left = lsList_pt_left - mutual_ls
-            lsList_pt_right = lsList_pt_right - mutual_ls
+            mutual_ls = set.intersection(ls_list_pt_left, ls_list_pt_right)
+            ls_list_pt_left = ls_list_pt_left - mutual_ls
+            ls_list_pt_right = ls_list_pt_right - mutual_ls
 
             # exact OR overarching
             lines.update(find_flush_bdr(pt_left, pt_right, mutual_ls))
             # insufficient
-            lines['insufficient_half_left'] = find_line_insufficient(lsList_pt_left, pt_left, pt_right)
-            lines['insufficient_half_right'] = find_line_insufficient(lsList_pt_right, pt_right, pt_left)
+            lines['insufficient_half_left'] = find_line_insufficient(ls_list_pt_left, pt_left, pt_right)
+            lines['insufficient_half_right'] = find_line_insufficient(ls_list_pt_right, pt_right, pt_left)
             # Both sides are not matching
             lines.update(self.find_inside_lines(pt_left, pt_right))
 
-            # In case multiple linestrings have been found, write an error
+            # In case multiple linestrings have been found, write a warning
             if len([v for k, v in lines.items() if v[0]]) > 1:
                 logger.warning(f'Multiple possible long. boundaries found for points {pt_left} and {pt_right}')
 
@@ -238,8 +240,8 @@ class DataHandler:
                     matching_case = [k for k, v in lines.items() if v[0]]
                     pt_pairs = lines[matching_case[0]][1]
                     ref_line = lines[matching_case[0]][0]
-                    logger.debug(
-                        f'Using existing line with ID {lines[matching_case[0]][0]} partially for long. boundary')
+                    logger.debug(f'Using existing line with ID {lines[matching_case[0]][0]}'
+                                 f'partially for long. boundary')
                 else:
                     pt_pairs = [pt_left, pt_right]
                     logger.debug(f'No existing line has been found, using endpoints for new linestring.')
@@ -263,6 +265,7 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
         #### perhaps use geometry.inside
         searchBox = make_orthogonal_bounding_box(pt_left, pt_right)
 
@@ -300,15 +303,20 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
+        # 1. Derive behavioral demand of the lateral boundaries
+        logger.debug(f'_______ Deriving behavioral demand of lateral boundaries _______')
         logger.debug(f'Deriving behavioral demand of lateral boundary of alongBehavior (left,'
                      f' ID:{bs.alongBehavior.leftBound.id}) and '
-                     f'againstBehavior (right, ID:ID:{bs.againstBehavior.rightBound.id})')
+                     f'againstBehavior (right, ID:{bs.againstBehavior.rightBound.id})')
         self.derive_behavior_bdr_lat(bs.alongBehavior, bs.againstBehavior, 'left')
         logger.debug(f'Deriving behavioral demand of lateral boundary of alongBehavior (left,'
                      f' ID:{bs.againstBehavior.leftBound.id}) and '
-                     f'againstBehavior (right, ID:ID:{bs.alongBehavior.rightBound.id})')
+                     f'againstBehavior (right, ID:{bs.alongBehavior.rightBound.id})')
         self.derive_behavior_bdr_lat(bs.againstBehavior, bs.alongBehavior, 'right')
 
+        # 2. Derive behavioral demand of the longitudinal boundaries
+        logger.debug(f'_______ Deriving behavioral demand of longitudinal boundaries _______')
         if bs.alongBehavior.longBound:
             logger.debug(f'Deriving behavioral demand of longitudinal boundary of'
                          f' alongBehavior (ID:{bs.alongBehavior.longBound.id})')
@@ -318,15 +326,34 @@ class DataHandler:
                          f' againstBehavior (ID:{bs.againstBehavior.longBound.id})')
             self.derive_behavior_bdr_long(bs.againstBehavior, lanelet)
 
+        # 3. Derive speed limits for along and against reference direction of a behavior space
+        logger.debug(f'_______ Deriving speed limits _______')
         if 'own_speed_limit' not in lanelet.attributes and 'other_speed_limit' not in lanelet.attributes:
+            logger.debug(f'Derive speed limit for the segment the current lanelet belongs to.')
             self.derive_segment_speed_limit(lanelet)
-        bs.alongBehavior.attributes.speed_max = lanelet.attributes['own_speed_limit']
-        if 'own_speed_limit_link' in lanelet.attributes:
-            bs.alongBehavior.attributes.add_speed_indicator(int(lanelet.attributes['own_speed_limit_link']))
-        bs.againstBehavior.attributes.speed_max = lanelet.attributes['other_speed_limit']
-        if 'other_speed_limit_link' in lanelet.attributes:
-            bs.againstBehavior.attributes.add_speed_indicator(int(lanelet.attributes['other_speed_limit_link']))
+        else:
+            logger.debug(f'Segmentwise speed limit derivation has already been done for this lanelet.')
 
+        # Use the speed limit that are temporarily stored in the lanelet attributes to save them in the respective
+        # behaviors. If existing, add a reference to the speed indicator
+        speed_limit = lanelet.attributes['own_speed_limit']
+        bs.alongBehavior.attributes.speed_max = speed_limit
+        logger.debug(f'For behavior along (ID: {bs.alongBehavior.id}) speed limit {speed_limit} extracted from lanelet')
+        if 'own_speed_limit_link' in lanelet.attributes:
+            speed_ind_id = int(lanelet.attributes['own_speed_limit_link'])
+            logger.debug(f'Referencing regulatory element {speed_ind_id} as speed indicator for alongBehavior')
+            bs.alongBehavior.attributes.add_speed_indicator(speed_ind_id)
+
+        speed_limit = lanelet.attributes['other_speed_limit']
+        bs.againstBehavior.attributes.speed_max = speed_limit
+        logger.debug(f'For behavior against (ID: {bs.againstBehavior.id}) speed limit {speed_limit} extracted from lanelet')
+        if 'other_speed_limit_link' in lanelet.attributes:
+            speed_ind_id = int(lanelet.attributes['other_speed_limit_link'])
+            logger.debug(f'Referencing regulatory element {speed_ind_id} as speed indicator for againstBehavior')
+            bs.againstBehavior.attributes.add_speed_indicator(speed_ind_id)
+
+        # 4. Derive external reservation at zebra crossings
+        logger.debug(f'_______ Deriving Reservation _______')
         self.derive_conflicts(bs)
 
     # -------------------------------------------------------------------
@@ -377,6 +404,7 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
         types = ['zebra_marking']
         tr_pedestrian = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
                                                       lanelet2.traffic_rules.Participants.Pedestrian)
@@ -409,10 +437,16 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
+        logger.debug(f'-.-.-.-.-.-.-.-.-.-.-.-')
+
+        logger.debug(f'Searching for lanelets of the same segment and driving direction for lanelet {lanelet.id}')
         own_direction = self.find_adjacent(lanelet, 0)
+        logger.debug(f'Found lanelets {[[key, [ll.id for ll in value]] for key, value in own_direction.items()]}')
         first_opposing_lls = None
         self.assign_sl_along(own_direction)
 
+        logger.debug(f'Searching for lanelets of the same segment but in the other driving direction.')
         # get speed limit of outer left lanelet
         for ll in own_direction[max(own_direction.keys())]:
             # find neighboring lanelet in other direction
@@ -420,26 +454,39 @@ class DataHandler:
 
             if first_opposing_lls:
 
-                other_direction = self.find_adjacent(first_opposing_lls.pop(), 0)
+                other_direction = self.find_adjacent(next(iter(first_opposing_lls)), 0)
+                logger.debug(f'Found lanelets'
+                             f'{[[key, [ll.id for ll in value]] for key, value in other_direction.items()]} '
+                             f'for opposing driving direction.')
                 # derive speed limit for other_direction
                 self.assign_sl_along(other_direction)
 
                 # distinguish passability between driving directions
                 if not derive_crossing_type_for_lat_boundary(ll.leftBound.attributes, 'left') == 'not_possible':
                     # no structural separation
+                    logger.debug(f'Driving directions for this segment are not structurally separated.'
+                                 f' Cross assign speed limits to lanelets.')
                     ll_other_left = list(other_direction[max(other_direction.keys())])[0]
                     self.assign_sl_against(other_direction, ll)
                     self.assign_sl_against(own_direction, ll_other_left)
                 else:
                     # driving directions are structurally separated
+                    logger.debug(f'Driving directions for this segment are structurally separated.'
+                                 f' Use along behavior speed limit for against behavior.')
                     self.assign_sl_against(other_direction)
                     self.assign_sl_against(own_direction)
+
+                break
 
         # if no lanelet into the opposing direction is found,
         # it is assumed that the driving directions are structurally separated
         if not first_opposing_lls:
             # driving directions are structurally separated
+            logger.debug(f'Driving directions for this segment are structurally separated.'
+                         f' Use along behavior speed limit for against behavior.')
             self.assign_sl_against(own_direction)
+
+        logger.debug(f'-.-.-.-.-.-.-.-.-.-.-.-')
 
     def find_adjacent(self, current_ll, level, prev_ll=None):
         '''
@@ -487,11 +534,16 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
         for level in segment.keys():
             for ll in segment[level]:
-                ll.attributes['own_speed_limit'] = str(round(self.traffic_rules.speedLimit(ll).speedLimit))
+                speed_limit = str(round(self.traffic_rules.speedLimit(ll).speedLimit))
+                ll.attributes['own_speed_limit'] = speed_limit
+                logger.debug(f'Saving speed limit {speed_limit} for along behavior in lanelet {ll.id}')
+
                 speed_limit_objects = [regelem for regelem in ll.regulatoryElements if isinstance(regelem, SpeedLimit)]
                 if speed_limit_objects:
+                    logger.debug(f'Found regulatory element {speed_limit_objects[0].id} that indicates the speed limit')
                     ll.attributes['own_speed_limit_link'] = str(speed_limit_objects[0].id)
 
     def assign_sl_against(self, segment, other_ll=None):
@@ -506,6 +558,7 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
         for level in segment.keys():
             for ll in segment[level]:
                 if other_ll:
@@ -529,6 +582,7 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
         ll_layer = self.map_lanelet.laneletLayer
         nbrs = {ll for ll in ll_layer.findUsages(ls) if is_ll_relevant(ll.attributes)}
         nbrs.discard(lanelet)
@@ -550,6 +604,7 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
         ll_layer = self.map_lanelet.laneletLayer
 
         neighbor_areas = self.find_neighbor_areas(ls, 'keepout')
@@ -598,6 +653,7 @@ class DataHandler:
             ls (bool):True if conditions are met, otherwise False.
 
         '''
+
         list_for_direction = []
         for ll, ls in sourrounding_lanelets.items():
             angle = util.angle_between_lanelets(ll, ref_lanelet)
@@ -639,6 +695,7 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
         pts_corrected = [self.map_lanelet.pointLayer[pt.id] for pt in pts]
         ls_connect = LineString3d(getId(), pts_corrected)
         angle_1 = util.angle_between_linestrings(ls1, ls_connect)
@@ -661,33 +718,41 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
         # find all conflicting lanelets in RoutingGraph for lanelet of this behavior space
         for ll in self.graph.conflicting(bs.ref_lanelet):
             # filter this list for lanelets whose centerline are intersecting with the behavior spaces lanelet
             if is_zebra_and_intersecting(ll, bs.ref_lanelet):
 
+                logger.debug(f'Conflicting zebra crossing with lanelet ID {ll.id} has been found. '
+                             f'Setting reservation for behavior space {bs} for both directions to externally')
                 bs.alongBehavior.reservation[0].attributes.reservation = tp.ReservationType.EXTERNALLY
                 bs.againstBehavior.reservation[0].attributes.reservation = tp.ReservationType.EXTERNALLY
                 bs.alongBehavior.reservation[0].attributes.pedestrian = True
                 bs.againstBehavior.reservation[0].attributes.pedestrian = True
 
+                logger.debug(f'Searching for lanelets and areas that need to be referenced via reservation links.')
                 for link_ll in self.graph.conflicting(ll):
                     if is_ll_relevant(link_ll.attributes) and geo.intersectCenterlines2d(link_ll, ll):
 
                         if not link_ll == bs.ref_lanelet:
+                            logger.debug(f'Found lanelet {link_ll.id}, which conflicts with crosswalk lanelet {ll.id}')
                             bs.alongBehavior.reservation[0].attributes.add_link(link_ll.id)
                             bs.againstBehavior.reservation[0].attributes.add_link(link_ll.id)
 
                         nbr_areas = self.find_neighbor_areas(link_ll.leftBound, 'walkway') | self.find_neighbor_areas(
                             link_ll.rightBound, 'walkway')
                         for area in nbr_areas:
+                            logger.debug(f'Found walkway area {area.id}, which lies next to crosswalk lanelet {ll.id}')
                             bs.alongBehavior.reservation[0].attributes.add_link(area.id)
                             bs.againstBehavior.reservation[0].attributes.add_link(area.id)
 
                 for link_ll in self.graph.previous(ll):
+                    logger.debug(f'Found walkway lanelet {link_ll.id}, which lies before/after to crosswalk lanelet {ll.id}')
                     bs.alongBehavior.reservation[0].attributes.add_link(link_ll.id)
                     bs.againstBehavior.reservation[0].attributes.add_link(link_ll.id)
                 break
+        logger.debug(f'No zebra crossing found.')
 
     def find_neighbor_areas(self, ls, subtype=None):
         '''
@@ -701,6 +766,7 @@ class DataHandler:
         Returns:
             ls (bool):True if conditions are met, otherwise False.
         '''
+
         a_layer = self.map_lanelet.areaLayer
         neighbor_areas = set.union(set(a_layer.findUsages(ls)),
                                    set(a_layer.findUsages(ls.invert())))

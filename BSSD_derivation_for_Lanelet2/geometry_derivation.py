@@ -4,7 +4,7 @@ import math
 from lanelet2.geometry import distance as dist
 from lanelet2.core import Point2d, Point3d, BoundingBox2d, BasicPoint2d
 
-from constants import LONG_BDR_TAGS
+from .constants import LONG_BDR_TAGS
 
 logger = logging.getLogger('framework.geometry_derivation')
 
@@ -19,7 +19,7 @@ def find_line_insufficient(ls_list, point_matching, point_free):
     each side of each lanelet.
 
     Parameters:
-        ls_list (list):List of linestrings that contain either the startpoint of the left or right lateral boundary
+        ls_list (list | set):List of linestrings that contain either the startpoint of the left or right lateral boundary
         point_matching (Point2d or Point3d):A point that is part of the linestring in ls_list and of a lateral bdr.
         point_free (Point2d or Point3d):The startpoint of the other lateral boundary that is not part of a ls in ls_list
 
@@ -111,7 +111,7 @@ def find_flush_bdr(pt_left, pt_right, list_mutual):
     Parameters:
         pt_left (Point2d or Point3d): Startpoint of the left lateral boundary of a lanelet
         pt_right (Point2d or Point3d): Startpoint of the right lateral boundary of a lanelet
-        list_mutual (list): List of linestrings that contain pt_left and pt_right
+        list_mutual (list | set): List of linestrings that contain pt_left and pt_right
 
     Returns:
         lines_local (dictionary):Pair of ID of found reference linestring and a list of points for the new linestring
