@@ -10,49 +10,11 @@ from bssd.core import _types as tp
 from .preprocessing import is_ll_relevant
 from . import BSSD_elements
 from .geometry_derivation import make_orthogonal_bounding_box, find_flush_bdr, find_line_insufficient
-from .behavior_derivation import derive_crossing_type_for_lat_boundary
+from .behavior_derivation import derive_crossing_type_for_lat_boundary, is_zebra_and_intersecting
 from . import util
 from .constants import LONG_BDR_TAGS, LONG_BDR_DICT
 
 logger = logging.getLogger('framework.data_handler')
-
-
-def is_zebra_and_intersecting(ll, ref_ll):
-    '''
-    Returns boolean variable after checking whether two lanelets are having intersection
-    centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
-
-    Parameters:
-        ll (lanelet):The lanelet that is being checked.
-        ref_ll (lanelet):The lanelet on which the behavior spaced is based.
-
-    Returns:
-        Bool (bool):True if conditions are met, otherwise False.
-    '''
-    if geo.intersectCenterlines2d(ll, ref_ll) and not is_ll_relevant(ll.attributes) and \
-            ll.leftBound.attributes['type'] == ll.rightBound.attributes['type'] == 'zebra_marking':
-        return True
-    else:
-        return False
-
-
-def join_dictionaries(dict_a, dict_b):
-    '''
-    Joins two dictionaries. Intended for dictionaries with partially mutual keys. This way the values of
-    the two dictionaries for the same key are being combined in a list. This function is used for the segment search.
-
-    Parameters:
-        dict_a (defaultdict):First dictionary.
-        dict_b (defaultdict):Second dictionary.
-
-    Returns:
-        dict (defaultdict):Combined defaultdict.
-    '''
-    for d in (dict_a, dict_b):
-        for key, value in d.items():
-            dict_a[key].update(value)
-
-    return dict_a
 
 
 class DataHandler:
@@ -136,17 +98,25 @@ class DataHandler:
     # -------------------- loop ---------------------
     # -----------------------------------------------
     def recursive_loop(self, ll_id, direction=None, ls=None):
-        '''
-        Returns boolean variable after checking whether two lanelets are having intersection
-        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+        """
+        Starting at any given lanelet of a map, this function loop through all lanelets that can be reached via
+        successor/predecessor connections. To achieve this, this function calls itself for every successor and
+        predecessor of a lanelet. For the next lanelets, it will repeat this process. Removing a processed lanelet
+        from a list of relevant lanelets assures that no lanelet will be touched twice. As soon as the end of every
+        possible path is reached, the loop ends. To make sure every other lanelet of a map is considered as well
+        a while-loop in framework.py makes sure that the loop is started again for the remaining lanelets.
+
+        During the processing of a lanelet, this function calls other functions that create BSSD elements and link
+        the behavior space to the lanelet. Furthermore, longitudinal boundaries are identified an derivations
+        of behavioral demand are being performed.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            ll_id (int):The id of the lanelet that is being processed.
+            direction (str):The direction from which the previous lanelet called the function for this lanelet.
+            ls (LineString3d | LineString3d):Linestring of longitudinal boundary of previous lanelet (if exists).
+        """
 
-        Returns:
-            (bool):True if conditions are met, otherwise False.
-        '''
+        # Retrieve lanelet object from lanelet map via ID
         ll = self.map_lanelet.laneletLayer[ll_id]
         # Remove current lanelet from list of relevant lanelets to keep track which lanelets still have to be done
         self.relevant_lanelets.remove(ll_id)
@@ -154,22 +124,31 @@ class DataHandler:
         logger.debug(f'----------------------------------------------------------------------------------------------')
         logger.debug(f'Derivation for Lanelet {ll_id}')
 
-        # Perform derivation of behavior space from current lanelet
+        # Determine longitudinal boundaries of both sides of the lanelet
+        # Based on the assumption that lanelets and behavior space are covering the same part of the roadway
         logger.debug(f'Derivation of longitudinal boundary for along behavior')
         alg_ls, alg_ref = self.get_long_bdr(ll.leftBound[0], ll.rightBound[0], 'along' == direction, ls)
         logger.debug(f'Derivation of longitudinal boundary for against behavior')
         agst_ls, agst_ref = self.get_long_bdr(ll.leftBound[-1], ll.rightBound[-1], 'against' == direction, ls)
-        # derive abs behavior
+
+        # create behavior space object and all bssd objects that are necessary for that
+        # Arguments are the lanelet and the longitudinal boundaries so that they can be assigned immediately
         new_bs = self.map_bssd.create_placeholder(ll, alg_ls, agst_ls)
+
+        # If a reference linestring has been found from which the longitudinal have been derived,
+        # save their IDs in the longitudinal boundary objects.
         if alg_ref:
             new_bs.alongBehavior.longBound.ref_line = alg_ref
         if agst_ref:
             new_bs.againstBehavior.longBound.ref_line = agst_ref
         logger.debug(f'Created Behavior Space {new_bs.id}')
+
+        # Call function for behavior derivation for the behavior space that was created for the current lanelet
         self.derive_behavior(new_bs, ll)
 
         # Call function in itself for the succeeding and preceding lanelet(s) and hand over information
-        # about already derived boundaries
+        # about already derived boundaries. Check if the following lanelet is relevant to avoid deriving
+        # behavior spaces for irrelevant lanelets.
         for successor in self.graph.following(ll):
             if successor.id in self.relevant_lanelets:
                 self.recursive_loop(successor.id, 'along', agst_ls)
@@ -181,71 +160,101 @@ class DataHandler:
     # ----------- longitudinal boundary -------------
     # -----------------------------------------------
     def get_long_bdr(self, pt_left, pt_right, use_previous, previous):
-        '''
-        Returns boolean variable after checking whether two lanelets are having intersection
-        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+        """
+        Determine the geometrical representation of the longitudinal boundary for one side of a lanelet which
+        corresponds with longitudinal boundary of one of the behaviors. For this, multiple cases are considered and
+        checked.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
+            use_previous (bool):True, if the linestring of the previous linestring matches with this site of the new ll.
+            previous (lanelet):Linestring of the previous lanelet/bs. Only used in combination with use_previous
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            ls (LineString3d | LineString3d):Linestring3d object of the determined geometry of the longitudinal bdr.
+            ref_line (bool):ID of the orig. linestring the new linestring has been derived from (None if not existent).
+        """
 
         # Initalize empty variables for the linestring and reference line
         ls = None
         ref_line = None
 
         # Check different possible cases
+        # First case is that the linestring information are given from the previous lanelet. In that case, the same
+        # linestring will be used to represent the longitudinal boundary of the current behavior space (at one side)
         if use_previous:
             # Use previously created linestring
             ls = previous
             ref_line = ls.id
             logger.debug(f'Using linestring from successor/predecessor (ID: {ls.id})')
+
+        # If the start-/endpoints of this side of a lanelet are identical, no longitudinal boundary exists
         elif pt_left.id == pt_right.id:
             # No longitudinal boundary exists
             logger.debug(f'Longitudinal boundary doesn\'t exist')
             pass
+
+        # Otherwise, check for existing lineStrings (e.g. stop_line). In each case, if a linestring matches
+        # the conditions, the points that are necessary for creating a new linestring will be extracted
         else:
-            # Check for existing lineStrings (e.g. stop_line)
+            # Setup a dictionary to store linestrings for each possible case.
             lines = LONG_BDR_DICT
 
+            # Find every usage of the left and right point
             ls_list_pt_left = set(self.map_lanelet.lineStringLayer.findUsages(pt_left))
             ls_list_pt_right = set(self.map_lanelet.lineStringLayer.findUsages(pt_right))
 
+            # Determine the linestrings that contain the left and the right point
             mutual_ls = set.intersection(ls_list_pt_left, ls_list_pt_right)
+
+            # Remove the mutual linestrings from the lists of each point to make sure that in the functions no
+            # wrong derivations will be made.
             ls_list_pt_left = ls_list_pt_left - mutual_ls
             ls_list_pt_right = ls_list_pt_right - mutual_ls
 
-            # exact OR overarching
+            # FIRST CASE: linestring contains both points
+            # This gives two options: The linestring is fitting exactly OR is overarching.
             lines.update(find_flush_bdr(pt_left, pt_right, mutual_ls))
+
+            # SECOND CASE: linestrings that contain only one point
             # insufficient
             lines['insufficient_half_left'] = find_line_insufficient(ls_list_pt_left, pt_left, pt_right)
             lines['insufficient_half_right'] = find_line_insufficient(ls_list_pt_right, pt_right, pt_left)
-            # Both sides are not matching
-            lines.update(self.find_inside_lines(pt_left, pt_right))
+
+            # THIRD CASE: linestrings that do not contain one of the points
+            # linestrings will be searched using a BoundingBox
+            lines['free'] = self.find_free_lines(pt_left, pt_right)
 
             # In case multiple linestrings have been found, write a warning
             if len([v for k, v in lines.items() if v[0]]) > 1:
                 logger.warning(f'Multiple possible long. boundaries found for points {pt_left} and {pt_right}')
 
+            # Check if a linestring has been found
+            # First condition is that an exact linestring has been found. For this case, this linestring will
+            # be used directly as the longitudinal boundary
             if lines['exact'][0]:
                 ls = self.map_lanelet.lineStringLayer[lines['exact'][0]]
                 ref_line = ls.id
                 logger.debug(f'Using existing line with ID {ls.id} as long. boundary')
-            # Create new line, if necessary
+
+            # In every other case, the creation of a new line is necessary
             else:
+                # If a linestring has been found get the points and ref line from the lines-dictionary
                 if any(v[0] for k, v in lines.items()):
                     matching_case = [k for k, v in lines.items() if v[0]]
                     pt_pairs = lines[matching_case[0]][1]
                     ref_line = lines[matching_case[0]][0]
                     logger.debug(f'Using existing line with ID {lines[matching_case[0]][0]}'
                                  f'partially for long. boundary')
+                # If no linestring has been found, save the start-/endpoints of of the lateral boundaries of the lanelet
                 else:
                     pt_pairs = [pt_left, pt_right]
                     logger.debug(f'No existing line has been found, using endpoints for new linestring.')
 
+                # For the identified points, create a new linestring and add it to the lanelet map
+                # First, get the mutable point object from the lanelet map, because also ConstPoints
+                # are used in linestrings
                 pt_pairs = [self.map_lanelet.pointLayer[pt.id] for pt in pt_pairs]
                 ls = LineString3d(getId(), pt_pairs, {'type': 'BSSD', 'subtype': 'boundary'})
                 logger.debug(f'Created new linestring as longitudinal boundary with ID {ls.id}')
@@ -253,30 +262,42 @@ class DataHandler:
 
         return ls, ref_line
 
-    def find_inside_lines(self, pt_left, pt_right):
-        '''
-        Returns boolean variable after checking whether two lanelets are having intersection
-        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+    def find_free_lines(self, pt_left, pt_right):
+        """
+        Searches for linestrings that are relevant for the longitudinal boundary of a behavior space but don't contain
+        one of the two start-/endpoints of a lanelet (which is referenced by the behavior space)
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The start-/endpoint of the linestring of the left lateral boundary
+            pt_right (Point2d | Point3d):The start-/endpoint of the linestring of the right lateral boundary
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            result (list):list with two items: 1 ref ls id and 2 points for the creation of a new linestring
+        """
 
-        #### perhaps use geometry.inside
-        searchBox = make_orthogonal_bounding_box(pt_left, pt_right)
+        # Create a bounding box that is created so that it finds linestrings that don't exceed the lanelet borders
+        search_box = make_orthogonal_bounding_box(pt_left, pt_right)
 
-        near_ls = [ls for ls in self.map_lanelet.lineStringLayer.search(searchBox) if
-                   not pt_left in ls or not pt_right in ls]
+        # Use bounding box to search for linestrings in the area of a potential long boundary
+        # do not consider any linestring that contain either the left or the right start-/endpoint of the lat boundaries
+        # With this method every linestring that at least overlaps a bit with the bounding box will be found. Because
+        # of that, another condition is checked later within the for-loop-
+        near_ls = [ls for ls in self.map_lanelet.lineStringLayer.search(search_box)
+                   if pt_left not in ls or pt_right not in ls]
 
+        # For-loop through the lines that were found to check further conditions
         for line in near_ls:
             # Distinguish line inside and outside of lanelet
+            # This is achieved by checking whether the two endpoints of the linestring ly within the bounding box
+            # First, the type of the linestring is checked, if it generally could be considered for a long boundary
             if 'type' in line.attributes and line.attributes['type'] in LONG_BDR_TAGS and \
-                    all(x in self.map_lanelet.pointLayer.search(searchBox) for x in [line[0], line[-1]]):
+                    all(x in self.map_lanelet.pointLayer.search(search_box) for x in [line[0], line[-1]]):
+
+                # If conditions are met, the linestring will be used to derive the actual longitudinal boundary
+                # Store the points of the linestring in a list
                 ls_pts = [el for el in line]
+
+                # Check the orientation of the linestring to append pt_left and pt_right at the right place
                 if dist(line[0], pt_left) < dist(line[0], pt_right):
                     ls_pts.insert(0, pt_left)
                     ls_pts.append(pt_right)
@@ -284,25 +305,25 @@ class DataHandler:
                     ls_pts.insert(0, pt_right)
                     ls_pts.append(pt_left)
                 logger.debug(f'Found inside line with ID {line.id}')
-                return {'insufficient_full': [line.id, ls_pts]}
+                return [line.id, ls_pts]
 
-        return {'insufficient_full': [None, None]}
+        # If nothing was found, return a list with two empty items
+        return [None, None]
 
     # -----------------------------------------------
     # ------------ behavior derivation --------------
     # -----------------------------------------------
     def derive_behavior(self, bs, lanelet):
-        '''
-        Returns boolean variable after checking whether two lanelets are having intersection
-        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+        """
+        This is the main function for actual derivations of behavioral demands
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         # 1. Derive behavioral demand of the lateral boundaries
         logger.debug(f'_______ Deriving behavioral demand of lateral boundaries _______')
@@ -346,7 +367,8 @@ class DataHandler:
 
         speed_limit = lanelet.attributes['other_speed_limit']
         bs.againstBehavior.attributes.speed_max = speed_limit
-        logger.debug(f'For behavior against (ID: {bs.againstBehavior.id}) speed limit {speed_limit} extracted from lanelet')
+        logger.debug(
+            f'For behavior against (ID: {bs.againstBehavior.id}) speed limit {speed_limit} extracted from lanelet')
         if 'other_speed_limit_link' in lanelet.attributes:
             speed_ind_id = int(lanelet.attributes['other_speed_limit_link'])
             logger.debug(f'Referencing regulatory element {speed_ind_id} as speed indicator for againstBehavior')
@@ -360,17 +382,18 @@ class DataHandler:
     # ------------ behavior derivation of lateral boundary --------------
     # -------------------------------------------------------------------
     def derive_behavior_bdr_lat(self, behavior_a, behavior_b, side):
-        '''
+        """
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            behavior_a (Behavior):The lanelet that is being checked.
+            behavior_b (Behavior):The lanelet on which the behavior spaced is based.
+            side (str):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         logger.debug(f'Deriving CrossingType for linestring {behavior_a.leftBound.lineString.id}.')
         cr = derive_crossing_type_for_lat_boundary(behavior_a.leftBound.lineString.attributes, side)
@@ -393,17 +416,17 @@ class DataHandler:
     # ------------ behavior derivation of longitudinal boundary --------------
     # ------------------------------------------------------------------------
     def derive_behavior_bdr_long(self, behavior, ll):
-        '''
+        """
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         types = ['zebra_marking']
         tr_pedestrian = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
@@ -426,17 +449,17 @@ class DataHandler:
     # ------------ derivation of speed limits for all lanelets of a segment --------------
     # ------------------------------------------------------------------------------------
     def derive_segment_speed_limit(self, lanelet):
-        '''
+        """
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         logger.debug(f'-.-.-.-.-.-.-.-.-.-.-.-')
 
@@ -489,17 +512,17 @@ class DataHandler:
         logger.debug(f'-.-.-.-.-.-.-.-.-.-.-.-')
 
     def find_adjacent(self, current_ll, level, prev_ll=None):
-        '''
+        """
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         # Find all lanelets that are lying right next to each other
         # condition is that they share there lateral boundary
@@ -514,26 +537,26 @@ class DataHandler:
 
         for lanelet in lefts:
             sub_set = self.find_adjacent(lanelet, level + 1, current_ll)
-            join_dictionaries(lanelets_for_direction, sub_set)
+            util.join_dictionaries(lanelets_for_direction, sub_set)
 
         for lanelet in rights:
             sub_set = self.find_adjacent(lanelet, level - 1, current_ll)
-            join_dictionaries(lanelets_for_direction, sub_set)
+            util.join_dictionaries(lanelets_for_direction, sub_set)
 
         return lanelets_for_direction
 
     def assign_sl_along(self, segment):
-        '''
+        """
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         for level in segment.keys():
             for ll in segment[level]:
@@ -547,17 +570,17 @@ class DataHandler:
                     ll.attributes['own_speed_limit_link'] = str(speed_limit_objects[0].id)
 
     def assign_sl_against(self, segment, other_ll=None):
-        '''
+        """
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         for level in segment.keys():
             for ll in segment[level]:
@@ -571,17 +594,17 @@ class DataHandler:
                         ll.attributes['other_speed_limit_link'] = ll.attributes['own_speed_limit_link']
 
     def find_one_sided_neighbors(self, lanelet, ls, orientation):
-        '''
+        """
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         ll_layer = self.map_lanelet.laneletLayer
         nbrs = {ll for ll in ll_layer.findUsages(ls) if is_ll_relevant(ll.attributes)}
@@ -593,17 +616,17 @@ class DataHandler:
         return nbrs
 
     def neighbor_next_to_area(self, ls):
-        '''
+        """
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         ll_layer = self.map_lanelet.laneletLayer
 
@@ -639,20 +662,17 @@ class DataHandler:
             return dict()
 
     def filter_for_direction(self, sourrounding_lanelets, ref_lanelet, ref_ls, orientation):
-        '''
+        """
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
         Parameters:
-            sourrounding_lanelets (lanelet):The lanelet that is being checked.
-            ref_lanelet (lanelet):The lanelet on which the behavior spaced is based.
-            ref_ls (lanelet):The lanelet on which the behavior spaced is based.
-            orientation (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         list_for_direction = []
         for ll, ls in sourrounding_lanelets.items():
@@ -684,17 +704,17 @@ class DataHandler:
         return list_for_direction
 
     def are_linestrings_orthogonal(self, ls1, ls2, pts):
-        '''
+        """
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         pts_corrected = [self.map_lanelet.pointLayer[pt.id] for pt in pts]
         ls_connect = LineString3d(getId(), pts_corrected)
@@ -707,17 +727,17 @@ class DataHandler:
     # ------------ behavior derivation of reservation at zebra crossings --------------
     # ---------------------------------------------------------------------------------
     def derive_conflicts(self, bs):
-        '''
+        """
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         # find all conflicting lanelets in RoutingGraph for lanelet of this behavior space
         for ll in self.graph.conflicting(bs.ref_lanelet):
@@ -748,24 +768,25 @@ class DataHandler:
                             bs.againstBehavior.reservation[0].attributes.add_link(area.id)
 
                 for link_ll in self.graph.previous(ll):
-                    logger.debug(f'Found walkway lanelet {link_ll.id}, which lies before/after to crosswalk lanelet {ll.id}')
+                    logger.debug(
+                        f'Found walkway lanelet {link_ll.id}, which lies before/after to crosswalk lanelet {ll.id}')
                     bs.alongBehavior.reservation[0].attributes.add_link(link_ll.id)
                     bs.againstBehavior.reservation[0].attributes.add_link(link_ll.id)
                 break
         logger.debug(f'No zebra crossing found.')
 
     def find_neighbor_areas(self, ls, subtype=None):
-        '''
+        """
         Returns boolean variable after checking whether two lanelets are having intersection
         centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
 
         Parameters:
-            ll (lanelet):The lanelet that is being checked.
-            ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+            pt_left (Point2d | Point3d):The lanelet that is being checked.
+            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
 
         Returns:
-            ls (bool):True if conditions are met, otherwise False.
-        '''
+            lines (dict):True if conditions are met, otherwise False.
+        """
 
         a_layer = self.map_lanelet.areaLayer
         neighbor_areas = set.union(set(a_layer.findUsages(ls)),

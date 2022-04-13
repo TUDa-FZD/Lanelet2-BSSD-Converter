@@ -32,7 +32,6 @@ Entwicklung eines Frameworks zur automatisierten Generierung der BSSD-Erweiterun
 Open a terminal window in the folder math-837 and install
 the required packages as well as the tool itself with the command
 
-
 # Usage
 
 1. Get the path to the Lanelet2 map that you wish to use.
@@ -42,3 +41,7 @@ the required packages as well as the tool itself with the command
 3. The tool will automatically execute and show some information about the current status in the terminal
 4. After successful execution, the modified Lanelet2 map will be stored in the subfolder /Output, which will be created (if not already existing)  in the same folder as the original osm-map.
 5. Furthermore, a derivation-log-file is saved into the Output folder
+
+# Architecture
+
+To get an overview of how this framework is build, read [this](doc/architecture.md).

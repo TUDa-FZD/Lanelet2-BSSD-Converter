@@ -80,6 +80,25 @@ def angle_between_linestrings(ls1, ls2):
     return angle_between(v1, v2)
 
 
+def join_dictionaries(dict_a, dict_b):
+    '''
+    Joins two dictionaries. Intended for dictionaries with partially mutual keys. This way the values of
+    the two dictionaries for the same key are being combined in a list. This function is used for the segment search.
+
+    Parameters:
+        dict_a (defaultdict):First dictionary.
+        dict_b (defaultdict):Second dictionary.
+
+    Returns:
+        dict (defaultdict):Combined defaultdict.
+    '''
+    for d in (dict_a, dict_b):
+        for key, value in d.items():
+            dict_a[key].update(value)
+
+    return dict_a
+
+
 def setup_logger(file):
     """
     Sets up the logger. Requires the filepath of the Lanelet2/BSSD output map to store the log-file at the same location.

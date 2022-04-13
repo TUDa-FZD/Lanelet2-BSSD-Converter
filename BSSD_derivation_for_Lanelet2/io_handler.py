@@ -137,10 +137,10 @@ class IoHandler:
         Parameters:
             file (path):Filename of the original map file. Output filename is based on it and extended by _BSSD.
         """
+
         data = data2 = ""
         # path_output = 'Output/' + file[:-4] + '_BSSD.osm'
         path_output = file[:-4] + '_BSSD.osm'
-        logger.info(f'{path_output}')
 
         # Reading data from Lanelet2 file except the last line
         with open(self._tmp_ll_file) as fp:
@@ -157,6 +157,8 @@ class IoHandler:
             os.remove(path_output)
         with open(path_output, 'w') as fp:
             fp.writelines(data)
+
+        logger.info(f'Saved file as {path_output}')
 
     @staticmethod
     def reverse_changes(map_ll):

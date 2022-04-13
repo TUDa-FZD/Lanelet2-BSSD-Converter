@@ -31,13 +31,14 @@ class Preprocessing:
         find_usages_and_remove_self(ll, side):
             Finds direct neighbors on one side of a lanelet.
     """
+
     def __init__(self, map_lanelet):
         self.map_lanelet = map_lanelet
         self.traffic_rules = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
                                                            lanelet2.traffic_rules.Participants.Vehicle)
 
     def get_routing_graph_all(self):
-        '''
+        """
         Creates a Lanelet2-RoutingGraph object for the participant 'vehicle'. Before the creation every lanelet of the
         map is made drivable by vehicles by setting overrride tags. This enables a RoutingGraph that contains every
         lanelet of a map, which is useful for the operations within this framework. Therefore, this RoutingGraph
@@ -45,7 +46,8 @@ class Preprocessing:
 
         Returns:
             graph (RoutingGraph):RoutingGraph object, which contains lanelets as nodes and their connections as edges.
-        '''
+        """
+
         # Setup a variable to save the edited lanelets in
         edited = {}
 
@@ -78,30 +80,36 @@ class Preprocessing:
         return graph
 
     def find_relevant_lanelets(self) -> list:
-        '''
+        """
         This function is going through every lanelet of the map and checking different criteria to determine whether
         a lanelet belongs to the roadway and therefore is relevant for the behavior space derivation.
 
         Returns:
             relevant_lanelets (list):List of every relevant lanelet of a Lanelet2 map.
-        '''
+        """
+
         # First, filter lanelets for passability of motorized vehicles
         relevant_lanelets = [item.id for item in self.map_lanelet.laneletLayer if is_ll_relevant(item.attributes)]
         # Second, add a list of relevant bicycle lanelets and return both lists combined
         return relevant_lanelets + self.get_relevant_bicycle_lls()
 
     def get_relevant_bicycle_lls(self) -> list:
-        '''
+        """
         This function filters every bicycle lanelet of a Lanelet2 map for relevance. This means that conditions need to
         be met to consider a lanelet part of the roadway. Currently, the conditions are that a bicycle lanelet has
         neigbors that are generally considered relevant (using the 'is_ll_relevant' function).
 
         Returns:
             relevant_bicycle_list (list):List of every relevant bicycle lanelet of a Lanelet2 map.
-        '''
+        """
 
-        # Filter lanelet map for all lanelets that are tagged as 'bicycle_lane'
-        list_bicycle = [item for item in self.map_lanelet.laneletLayer if item.attributes['subtype'] == 'bicycle_lane']
+        # Filter lanelet map for all lanelets that are tagged as 'bicycle_lane' or include the overriding tag
+        # 'participant:bicycle' which is set to 'yes'
+        list_bicycle = [item for item in self.map_lanelet.laneletLayer
+                        if item.attributes['subtype'] == 'bicycle_lane'
+                        or ('participant:bicycle' in item.attributes
+                            and item.attributes['participant:bicycle'] == 'yes')
+                        ]
         relevant_bicycle_list = []
 
         # For-loop for every bicycle lane lanelet
@@ -122,7 +130,7 @@ class Preprocessing:
         return relevant_bicycle_list
 
     def find_usages_and_remove_self(self, ll: Lanelet, side: str) -> list:
-        '''
+        """
         Finds all the direct neighbors of a given lanelet for the left or right side. This is accomplished by using the
         FindUsages function of the Lanelet2-Framework. This returns a list from which the original lanelet is being
         removed.
@@ -133,7 +141,7 @@ class Preprocessing:
 
         Returns:
             nbrs (list):True if conditions are met, otherwise False.
-        '''
+        """
 
         # Create an empty list to store neighbors in.
         nbrs = []
@@ -152,7 +160,7 @@ class Preprocessing:
 
 
 def is_ll_relevant(att: AttributeMap) -> bool:
-    '''
+    """
     Determine the relevance of a lanelet by first checking its subtype (for instance: shouldn't be "stairs")
     and second if any overriding 'participant'-tags are being used
 
@@ -161,7 +169,7 @@ def is_ll_relevant(att: AttributeMap) -> bool:
 
         Returns:
             relevant (bool):True if lanelet is relevant according to the selected criteria.
-    '''
+    """
 
     # Check if the lanelet subtype is in the list of subtypes that are considered to be part of the roadway
     # A second condition is used checks if the tag relevant bicycle lane is set.
@@ -188,7 +196,7 @@ def is_ll_relevant(att: AttributeMap) -> bool:
 
 
 def is_bicycle_ll_relevant(nbrs: list, bound_att: AttributeMap) -> bool:
-    '''
+    """
     This function checks for a given lateral linestring of a bicycle lanelet and the neighbors next to that linestring
     whether a bicycle lanelet is relevant.
 
@@ -198,7 +206,7 @@ def is_bicycle_ll_relevant(nbrs: list, bound_att: AttributeMap) -> bool:
 
         Returns:
             relevant (bool):True if bicycle lanelet is relevant according to the selected criteria.
-    '''
+    """
 
     # First condition is that the lanelet has neighbors, if not, the bicycle lanelet is considered not to be on the
     # roadway. Second, neighbors are being checked themselves for relevance. It is otherwise possible that a bicycle

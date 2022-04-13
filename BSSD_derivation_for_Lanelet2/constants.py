@@ -19,7 +19,7 @@ LONG_BDR_DICT = {'exact': [None],
                  'protruding': [None, None],
                  'insufficient_half_left': [None, None],
                  'insufficient_half_right': [None, None],
-                 'insufficient_full': [None, None]
+                 'free': [None, None]
                  }
 
 SEPARATION_TAGS = ['fence',

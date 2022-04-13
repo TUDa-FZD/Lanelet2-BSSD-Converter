@@ -20,8 +20,8 @@ def find_line_insufficient(ls_list, point_matching, point_free):
 
     Parameters:
         ls_list (list | set):List of linestrings that contain either the startpoint of the left or right lateral boundary
-        point_matching (Point2d or Point3d):A point that is part of the linestring in ls_list and of a lateral bdr.
-        point_free (Point2d or Point3d):The startpoint of the other lateral boundary that is not part of a ls in ls_list
+        point_matching (Point2d | Point3d):A point that is part of the linestring in ls_list and of a lateral bdr.
+        point_free (Point2d | Point3d):The startpoint of the other lateral boundary that is not part of a ls in ls_list
 
     Returns:
         lines (list):Pair of ID of found reference linestring and a list of points for the new linestring that is

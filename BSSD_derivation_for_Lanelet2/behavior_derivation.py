@@ -1,13 +1,16 @@
 import logging
 
+import lanelet2.geometry as geo
 from bssd.core._types import CrossingType as ct
 from lanelet2.core import AttributeMap
+
+from .preprocessing import is_ll_relevant
 
 logger = logging.getLogger('framework.behavior_derivation')
 
 LINE = {'solid': ct.PROHIBITED,
         'solid_solid': ct.PROHIBITED,
-        'dashed': ct.PROHIBITED,
+        'dashed': ct.ALLOWED,
         'dashed_solid': {'left': ct.PROHIBITED, 'right': ct.ALLOWED},
         'solid_dashed': {'left': ct.ALLOWED, 'right': ct.PROHIBITED}
         }
@@ -22,6 +25,7 @@ lane_mark = {'curbstone': {'low': ct.PROHIBITED,
              'road_border': ct.NOT_POSSIBLE,
              'guard_rail': ct.NOT_POSSIBLE,
              'fence': ct.NOT_POSSIBLE,
+             'wall': ct.NOT_POSSIBLE,
              'keepout': ct.PROHIBITED,
              'zig-zag': ct.ALLOWED,
              'BSSD': {'boundary': ct.ALLOWED},
@@ -76,6 +80,26 @@ def derive_crossing_type_for_lat_boundary(att: AttributeMap, side: str):
 
     # return the derived crossing type (may be None)
     return crossing_type
+
+
+def is_zebra_and_intersecting(ll, ref_ll):
+    """
+    Returns boolean variable after checking whether two lanelets are having intersection
+    centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+
+    Parameters:
+        ll (lanelet):The lanelet that is being checked.
+        ref_ll (lanelet):The lanelet on which the behavior spaced is based.
+
+    Returns:
+        Bool (bool):True if conditions are met, otherwise False.
+    """
+
+    if geo.intersectCenterlines2d(ll, ref_ll) and not is_ll_relevant(ll.attributes) and \
+            ll.leftBound.attributes['type'] == ll.rightBound.attributes['type'] == 'zebra_marking':
+        return True
+    else:
+        return False
 
 
 def get_item(d, t):
