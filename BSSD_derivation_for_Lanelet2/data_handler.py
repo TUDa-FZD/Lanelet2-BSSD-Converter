@@ -315,14 +315,14 @@ class DataHandler:
     # -----------------------------------------------
     def derive_behavior(self, bs, lanelet):
         """
-        This is the main function for actual derivations of behavioral demands
+        This is the main function for actual derivations of behavioral demands. It integrates calls for other functions that
+        are deriving specific behavior attributes and properties. Therefore, it is possible to extend the behavior derivations
+        by adding more subfunctions in the future. The derivation is started after creating a behavior space placeholder
+        element for a lanelet in "recursive_loop". 
 
         Parameters:
-            pt_left (Point2d | Point3d):The lanelet that is being checked.
-            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
-
-        Returns:
-            lines (dict):True if conditions are met, otherwise False.
+            bs (BehaviorSpace):The behavior space instance that is supposed to be filled within this function.
+            lanelet (Lanelet):The lanelet on which the behavior spaced is mapped.
         """
 
         # 1. Derive behavioral demand of the lateral boundaries
@@ -331,9 +331,9 @@ class DataHandler:
                      f' ID:{bs.alongBehavior.leftBound.id}) and '
                      f'againstBehavior (right, ID:{bs.againstBehavior.rightBound.id})')
         self.derive_behavior_bdr_lat(bs.alongBehavior, bs.againstBehavior, 'left')
-        logger.debug(f'Deriving behavioral demand of lateral boundary of alongBehavior (left,'
+        logger.debug(f'Deriving behavioral demand of lateral boundary of againstBehavior (left,'
                      f' ID:{bs.againstBehavior.leftBound.id}) and '
-                     f'againstBehavior (right, ID:{bs.alongBehavior.rightBound.id})')
+                     f'alongBehavior (right, ID:{bs.alongBehavior.rightBound.id})')
         self.derive_behavior_bdr_lat(bs.againstBehavior, bs.alongBehavior, 'right')
 
         # 2. Derive behavioral demand of the longitudinal boundaries
@@ -348,6 +348,8 @@ class DataHandler:
             self.derive_behavior_bdr_long(bs.againstBehavior, lanelet)
 
         # 3. Derive speed limits for along and against reference direction of a behavior space
+        # To do so, check first whether the speed limits have already been derived for this segment. If not, the segmentwise
+        # derivation will be started.
         logger.debug(f'_______ Deriving speed limits _______')
         if 'own_speed_limit' not in lanelet.attributes and 'other_speed_limit' not in lanelet.attributes:
             logger.debug(f'Derive speed limit for the segment the current lanelet belongs to.')
@@ -355,8 +357,9 @@ class DataHandler:
         else:
             logger.debug(f'Segmentwise speed limit derivation has already been done for this lanelet.')
 
-        # Use the speed limit that are temporarily stored in the lanelet attributes to save them in the respective
-        # behaviors. If existing, add a reference to the speed indicator
+        # If speed limit already has been derived for the current lanelet, get the values that are temporarily 
+        # stored in the lanelet attributes to save them in the respective behaviors. If existing, add a reference
+        # to the speed indicator
         speed_limit = lanelet.attributes['own_speed_limit']
         bs.alongBehavior.attributes.speed_max = speed_limit
         logger.debug(f'For behavior along (ID: {bs.alongBehavior.id}) speed limit {speed_limit} extracted from lanelet')
@@ -383,24 +386,28 @@ class DataHandler:
     # -------------------------------------------------------------------
     def derive_behavior_bdr_lat(self, behavior_a, behavior_b, side):
         """
-        Returns boolean variable after checking whether two lanelets are having intersection
-        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+        Derive the behavioral demands for the lateral boundary of a behavior space (currently CorssingType and parking_only). 
+        Since the underlying linestring for both behavior elements (along and against reference direction) is the same, the 
+        derivation is performed once and the identified CrossingType is assigned to both lateral boundary objects. Therefore, 
+        both behavior objects are given as arguments and the "side"-argument is given to specify for which side of the first
+        given behavior object the CrossingType needs to be determined. The second behavior object is reversed compared to the
+        first one and therefore using the counterside. [ÜBERARBEITEN]
 
         Parameters:
             behavior_a (Behavior):The lanelet that is being checked.
             behavior_b (Behavior):The lanelet on which the behavior spaced is based.
-            side (str):The lanelet on which the behavior spaced is based.
-
-        Returns:
-            lines (dict):True if conditions are met, otherwise False.
+            side (str):'left' or 'right', referring to behavior_a.
         """
 
+        # First for the attributes of the linestring, derive the CrossingType. If no CrossingType could be
+        # derived None will be returned.
         logger.debug(f'Deriving CrossingType for linestring {behavior_a.leftBound.lineString.id}.')
-        cr = derive_crossing_type_for_lat_boundary(behavior_a.leftBound.lineString.attributes, side)
-        # Todo: adjust to new possiblities in core
-        if cr:
-            behavior_a.leftBound.attributes.crossing = behavior_b.rightBound.attributes.crossing = cr
+        ct = derive_crossing_type_for_lat_boundary(behavior_a.leftBound.lineString.attributes, side)
+        if ct:  # assign value two both lateral boundary elements for this side of the behavior space
+            behavior_a.leftBound.attributes.crossing = behavior_b.rightBound.attributes.crossing = ct
 
+        # Second, derive whether a parking area is lying next to the boundary. If that is the case, the property
+        # parking_only will be set for both lateral boundary objects and change the CrossingType to 'conditional'
         area_list = self.map_lanelet.areaLayer.findUsages(behavior_a.leftBound.lineString) + \
                     self.map_lanelet.areaLayer.findUsages(behavior_a.leftBound.lineString.invert())
         parking_only = False
@@ -408,6 +415,7 @@ class DataHandler:
             logger.debug(f'Found parking area with ID {area_list[0].id} next to lateral boundaries'
                          f' {behavior_a.leftBound.id} and {behavior_b.rightBound.id}. Setting parking_only=yes')
             parking_only = True
+            behavior_a.leftBound.attributes.crossing = behavior_b.rightBound.attributes.crossing = 'conditional'
 
         behavior_a.leftBound.attributes.parking_only = \
             behavior_b.rightBound.attributes.parking_only = parking_only
@@ -417,20 +425,21 @@ class DataHandler:
     # ------------------------------------------------------------------------
     def derive_behavior_bdr_long(self, behavior, ll):
         """
-        Returns boolean variable after checking whether two lanelets are having intersection
-        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+        Derive behavioral demands for the longitudinal boundary (currently no_stagnant_traffic at zebra crossings).
 
         Parameters:
-            pt_left (Point2d | Point3d):The lanelet that is being checked.
-            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
-
-        Returns:
-            lines (dict):True if conditions are met, otherwise False.
+            behavior (Behavior):Behavior element the demand is supposed to be derived.
+            ll (Lanelet):Lanelet on which the behavior spaced is mapped.
         """
 
+        # Create a traffic rules object for pedestrians
         types = ['zebra_marking']
         tr_pedestrian = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
                                                       lanelet2.traffic_rules.Participants.Pedestrian)
+
+        # Check, if the longitudinal boundary of the given behavior object is referencing to a linestring
+        # The is based on the assumption that a zebra crossing linestring was found for the derivation of the
+        # longitudinal boundary
         if behavior.longBound.ref_line:
             ls = self.map_lanelet.lineStringLayer[behavior.longBound.ref_line]
             if ls.attributes['type'] in types:
@@ -705,22 +714,30 @@ class DataHandler:
 
     def are_linestrings_orthogonal(self, ls1, ls2, pts):
         """
-        Returns boolean variable after checking whether two lanelets are having intersection
-        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+        Criterium that is used for determining whether two lanelets that are surrounding an keepout area, are belonging
+        to the same segment. Therefore, the two linestring that represent the border between the respective lanelets and
+        the area are given and the angle between each of them and a connecting line between them is calculated. If the
+        linestring are both having an angle to this line of 80° to 100°, the criterium is satisfied. 
 
         Parameters:
-            pt_left (Point2d | Point3d):The lanelet that is being checked.
-            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
+            ls1 (Linestring2d | Linestring3d):First linestring.
+            ls2 (Linestring2d | Linestring3d):Second linestring.
+            pts (list): List containing two points that connect the two linestrings.
 
         Returns:
-            lines (dict):True if conditions are met, otherwise False.
+            linestrings_orthogonal (bool):True if conditions are met, otherwise False.
         """
 
+        # Retrieve mutable point objects from the point layer
         pts_corrected = [self.map_lanelet.pointLayer[pt.id] for pt in pts]
+        # Create a Linestring object with the two points
         ls_connect = LineString3d(getId(), pts_corrected)
+
+        # Calculate the angles between each linestring and the connecting linestring
         angle_1 = util.angle_between_linestrings(ls1, ls_connect)
         angle_2 = util.angle_between_linestrings(ls2, ls_connect)
 
+        # return a bool through checking whether the two angles are within the specified range of 80° to 100°
         return 80 < angle_1 < 100 and 80 < angle_2 < 100
 
     # ---------------------------------------------------------------------------------
@@ -777,20 +794,25 @@ class DataHandler:
 
     def find_neighbor_areas(self, ls, subtype=None):
         """
-        Returns boolean variable after checking whether two lanelets are having intersection
-        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+        Searches in the areaLayer of the laneletMap for usages of the given linestring. A subtype can be specified to
+        only find areas of this subtype. E.g. 'parking' or 'keepout'
 
         Parameters:
-            pt_left (Point2d | Point3d):The lanelet that is being checked.
-            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
+            ls (Linestring2d | Linestring3d):Linestring that is used to search for neighboring areas.
+            subtype (str):Optional specification of a subtype that the function searches for.
 
         Returns:
-            lines (dict):True if conditions are met, otherwise False.
+            neighbor_areas (set):Set of area elements that were found.
         """
 
+        # Get the areaLayer object
         a_layer = self.map_lanelet.areaLayer
+        # Search for areas in which the linestring is used as part of the boundary. To make sure every area will be found,
+        # include a search for the inverted linestring.
         neighbor_areas = set.union(set(a_layer.findUsages(ls)),
                                    set(a_layer.findUsages(ls.invert())))
+
+        # If a subtype-string was given, filter the set and only keep the areas of the specified subtype
         if subtype:
             neighbor_areas = {area for area in neighbor_areas if area.attributes['subtype'] == subtype}
 
