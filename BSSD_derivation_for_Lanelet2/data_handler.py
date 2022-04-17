@@ -408,15 +408,22 @@ class DataHandler:
 
         # Second, derive whether a parking area is lying next to the boundary. If that is the case, the property
         # parking_only will be set for both lateral boundary objects and change the CrossingType to 'conditional'
-        area_list = self.map_lanelet.areaLayer.findUsages(behavior_a.leftBound.lineString) + \
-                    self.map_lanelet.areaLayer.findUsages(behavior_a.leftBound.lineString.invert())
-        parking_only = False
-        if any(item.attributes['subtype'] == 'parking' for item in area_list):
-            logger.debug(f'Found parking area with ID {area_list[0].id} next to lateral boundaries'
-                         f' {behavior_a.leftBound.id} and {behavior_b.rightBound.id}. Setting parking_only=yes')
+        # Todo: Use find_neighbor function
+        #area_list = self.map_lanelet.areaLayer.findUsages(behavior_a.leftBound.lineString) + \
+        #            self.map_lanelet.areaLayer.findUsages(behavior_a.leftBound.lineString.invert())
+        #parking_only = False
+        #if any(item.attributes['subtype'] == 'parking' for item in area_list):
+        #    logger.debug(f'Found parking area with ID {area_list[0].id} next to lateral boundaries'
+        #                 f' {behavior_a.leftBound.id} and {behavior_b.rightBound.id}. Setting parking_only=yes')
+        #    parking_only = True
+        #    behavior_a.leftBound.attributes.crossing = behavior_b.rightBound.attributes.crossing = 'conditional'
+        if find_neighbor_areas(behavior_a.leftBound.lineString, subtype='parking'):
             parking_only = True
             behavior_a.leftBound.attributes.crossing = behavior_b.rightBound.attributes.crossing = 'conditional'
-
+            logger.debug(f'Found parking area with ID {area_list[0].id} next to lateral boundaries'
+                         f' {behavior_a.leftBound.id} and {behavior_b.rightBound.id}. Setting parking_only=yes')
+        else:
+            parking_only = False
         behavior_a.leftBound.attributes.parking_only = \
             behavior_b.rightBound.attributes.parking_only = parking_only
 
@@ -426,6 +433,8 @@ class DataHandler:
     def derive_behavior_bdr_long(self, behavior, ll):
         """
         Derive behavioral demands for the longitudinal boundary (currently no_stagnant_traffic at zebra crossings).
+        To do so, a check of the type of the reference linestring is performed. Afterwards, the lanelets this linestring
+        is used in are checked for intersecting centerlines with the lanelet that this derivation has been started for.
 
         Parameters:
             behavior (Behavior):Behavior element the demand is supposed to be derived.
@@ -459,38 +468,56 @@ class DataHandler:
     # ------------------------------------------------------------------------------------
     def derive_segment_speed_limit(self, lanelet):
         """
-        Returns boolean variable after checking whether two lanelets are having intersection
-        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+        Starting from one lanelet, this function derives the speed limit along and against reference direction for every
+        lanelet of the segment. To achieve this, the first step is to find every lanelet of the same reference direction.
+        Second, for the outerleft lanelet neighbors for the other driving direction of the roadway are being searched. If no
+        neighbor is found, structural separation is assumed. If a neighbor is found, a search for all lanelets of that driving
+        direction will be started. Depending on the type of linestring inbetween the two driving directions, structural 
+        separation is assumed or not. 
+
+        For every lanelet of a segment the speed limit along reference direction is derived using the traffic rules module
+        of Lanelet2. If regulatory elements are referenced within the lanelet, their IDs will be stored as well. If structural
+        separation is found, the speed limit along reference direction is used as the speed limit against reference direction.
+        If no structural separation is identified, the speed limits against reference direction are used from lanelets of the
+        other side and therefore driving direction of the roadway.
+
+        The information about speed limit values and potential regulatory elements are stored in the attributes of lanelets,
+        because at the moment of the derivation there doesn't exist a behavior space element for each lanelet of the map. As
+        soon as the recursive loop processes a lanelet with speed limit information, those will be assigned to the behavior
+        elements of the behavior space.
 
         Parameters:
-            pt_left (Point2d | Point3d):The lanelet that is being checked.
-            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
-
-        Returns:
-            lines (dict):True if conditions are met, otherwise False.
+            lanelet (Lanelet):The lanelet for which the segment is identified and derivation of the speed limit is performed.
         """
 
         logger.debug(f'-.-.-.-.-.-.-.-.-.-.-.-')
 
+        # First, identify lanelets of the same driving direction within the same segment.
+        # The search is based on direct neighbors and neighbors next to keepout areas.
         logger.debug(f'Searching for lanelets of the same segment and driving direction for lanelet {lanelet.id}')
         own_direction = self.find_adjacent(lanelet, 0)
         logger.debug(f'Found lanelets {[[key, [ll.id for ll in value]] for key, value in own_direction.items()]}')
         first_opposing_lls = None
+
+        # Derive and assign information about the speed limit for the identified lanelets and store them in their attributes
         self.assign_sl_along(own_direction)
 
+        # Search for lanelets of the opposing driving direction for the outerleft lanelet of the identified lanelets
+        # Using a for loop, because there may be multiple lanelets assigned to the same level
         logger.debug(f'Searching for lanelets of the same segment but in the other driving direction.')
-        # get speed limit of outer left lanelet
         for ll in own_direction[max(own_direction.keys())]:
-            # find neighboring lanelet in other direction
+            # Search for a direct neighbor of the opposing direction through direct neighborhood or next to a keepout
             first_opposing_lls = self.find_one_sided_neighbors(ll, ll.leftBound.invert(), 'other')
 
+            # If a lanelet is found, check whether structural separation is dividing the roadway
             if first_opposing_lls:
-
+                
+                # Identify every lanelet of the opposing direction of the segment
                 other_direction = self.find_adjacent(next(iter(first_opposing_lls)), 0)
                 logger.debug(f'Found lanelets'
                              f'{[[key, [ll.id for ll in value]] for key, value in other_direction.items()]} '
                              f'for opposing driving direction.')
-                # derive speed limit for other_direction
+                # derive speed limit for other_direction along their reference direction
                 self.assign_sl_along(other_direction)
 
                 # distinguish passability between driving directions
@@ -522,28 +549,36 @@ class DataHandler:
 
     def find_adjacent(self, current_ll, level, prev_ll=None):
         """
-        Returns boolean variable after checking whether two lanelets are having intersection
-        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+        Find all lanelets of the same segment with the same reference direction. Search direct neighbors as well as neighbors
+        next to a keepout area.
 
         Parameters:
-            pt_left (Point2d | Point3d):The lanelet that is being checked.
-            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
+            current_ll (Point2d | Point3d):The lanelet that is being checked.
+            level (Point2d | Point3d):The lanelet on which the behavior spaced is based.
+            prev_ll (Lanelet): The previously considered lanelet to avoid recrusive loops.
 
         Returns:
-            lines (dict):True if conditions are met, otherwise False.
+            lanelets_for_direction (dict):Sorted by number, this function returns the lanelets of same direction.
         """
 
         # Find all lanelets that are lying right next to each other
-        # condition is that they share there lateral boundary
+        # condition is that they share there lateral boundary or that they are lying next to a keepout area
 
         lefts = self.find_one_sided_neighbors(current_ll, current_ll.leftBound, 'same')
         rights = self.find_one_sided_neighbors(current_ll, current_ll.rightBound, 'same')
+
+        # Remove the previously considered lanelet to avoid recursive loops
         lefts.discard(prev_ll)
         rights.discard(prev_ll)
 
+        # Create a defaultdict to store the lanelets, because this allows to insert items for keys that don't exist yet
         lanelets_for_direction = defaultdict(set)
+        # Making use of that, add the current lanelet for the current level as key
         lanelets_for_direction[level].add(current_ll)
 
+        # For both sides call this function recursivly again. Consequentially, the later function calls will report the
+        # information back to the earlier function calls so that eventually the first function call includes every lanelet
+        # that met the conditions for being part of the segment. The dictionaries are therefore concatenated
         for lanelet in lefts:
             sub_set = self.find_adjacent(lanelet, level + 1, current_ll)
             util.join_dictionaries(lanelets_for_direction, sub_set)
@@ -552,36 +587,45 @@ class DataHandler:
             sub_set = self.find_adjacent(lanelet, level - 1, current_ll)
             util.join_dictionaries(lanelets_for_direction, sub_set)
 
+
         return lanelets_for_direction
 
     def assign_sl_along(self, segment):
         """
-        Returns boolean variable after checking whether two lanelets are having intersection
-        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+        For a given dictionary of lanelets of the same reference direction of a segment, this function stores the speed limit
+        in the attributes of the lanelet. In case a regulatory element is indicating this limit, the function will determine
+        it's ID and also store it in the lanelets attributes.
 
         Parameters:
-            pt_left (Point2d | Point3d):The lanelet that is being checked.
-            pt_right (Point2d | Point3d):The lanelet on which the behavior spaced is based.
-
-        Returns:
-            lines (dict):True if conditions are met, otherwise False.
+            segment (segment):Dictionary that contains lanelets assigned to their lateral level in the roadway.
         """
 
+        # Loop through every level of the dictionary
         for level in segment.keys():
+            # Loop through every lanelet of the level
             for ll in segment[level]:
+                # Use the traffic rules function of lanelet to derive the speed limit and save it to the lanelets attributes
                 speed_limit = str(round(self.traffic_rules.speedLimit(ll).speedLimit))
                 ll.attributes['own_speed_limit'] = speed_limit
                 logger.debug(f'Saving speed limit {speed_limit} for along behavior in lanelet {ll.id}')
 
+                # Extract every regulatory element that is referenced in this lanelt of type SpeedLimit
                 speed_limit_objects = [regelem for regelem in ll.regulatoryElements if isinstance(regelem, SpeedLimit)]
+                # If a speed limit item was found, save the ID in the lanelets attributes
                 if speed_limit_objects:
                     logger.debug(f'Found regulatory element {speed_limit_objects[0].id} that indicates the speed limit')
                     ll.attributes['own_speed_limit_link'] = str(speed_limit_objects[0].id)
 
     def assign_sl_against(self, segment, other_ll=None):
         """
-        Returns boolean variable after checking whether two lanelets are having intersection
-        centerlines. Furthermore, another criteria is that one of the lanelets is a zebra crossing.
+        Similarly to the function assign_sl_along, this function assigns the speed limits against reference direction for
+        the lanelets of a given segment (=only from one driving direction of the roadway). Two options for the assignment
+        exist:
+        1. No other lanelet is given in the function arguments. This means, based on the formulated conditions,
+        the driving directions of the roadway are assumed as structurally separated. Therefore, within this function, every
+        lanelet gets the speed limit from along their reference direction save as their speed limit against reference direction.
+        2. Another lanelet is given in the function arguments. Checks in other function already indicated that there
+        is no structural separation 
 
         Parameters:
             pt_left (Point2d | Point3d):The lanelet that is being checked.
