@@ -1,3 +1,5 @@
+from bssd.core._types import CrossingType as ct
+
 
 SUBTYPE_TAGS = ["road",
                  "highway",
@@ -36,4 +38,27 @@ RELEVANT_BICYCLE_TAGS = ['line_thin',
                          'keepout',
                          'unmarked'
                          ]
+
+LINE = {'solid': ct.PROHIBITED,
+        'solid_solid': ct.PROHIBITED,
+        'dashed': ct.ALLOWED,
+        'dashed_solid': {'left': ct.PROHIBITED, 'right': ct.ALLOWED},
+        'solid_dashed': {'left': ct.ALLOWED, 'right': ct.PROHIBITED}
+        }
+
+LANE_MARK = {'curbstone': {'low': ct.PROHIBITED,
+                           'high': ct.NOT_POSSIBLE
+                           },
+             'line_thick': LINE,
+             'line_thin': LINE,
+             'virtual': ct.PROHIBITED,
+             'unmarked': ct.ALLOWED,
+             'road_border': ct.NOT_POSSIBLE,
+             'guard_rail': ct.NOT_POSSIBLE,
+             'fence': ct.NOT_POSSIBLE,
+             'wall': ct.NOT_POSSIBLE,
+             'keepout': ct.PROHIBITED,
+             'zig-zag': ct.ALLOWED,
+             'BSSD': {'boundary': ct.ALLOWED},
+             }
 

@@ -33,11 +33,12 @@ class BssdMap:
             Initiates the dictionaries for each layer.
         add(BssdElement):
             adds an element to its respective layer and returning the element for further usage
-        create_placeholder(lanelet=None, bdr_alg=None, bdr_agst=None):
+        create_placeholder(lanelet=None, long_boundary_along=None, long_boundary_against=None):
             Creates a placeholder BehaviorSpace and gives the opportunity to add longitudinal boundaries as well as lanelets.
-        create_behavior(leftBdr, rightBdr, longBdr):
+        create_behavior(left_boundary, right_boundary, long_boundary):
             Creates a placeholder Behavior and aggregates the lateral boundaries and the longitudinal boundary.
     """
+
     def __init__(self):
         self.BehaviorSpaceLayer = {}
         self.BehaviorLayer = {}
@@ -68,15 +69,15 @@ class BssdMap:
 
         return bssd_object
 
-    def create_placeholder(self, lanelet=None, bdr_alg=None, bdr_agst=None):
+    def create_placeholder(self, lanelet=None, long_boundary_along=None, long_boundary_against=None):
         """
         Function that creates an empty placeholderf or a behavior space and all subelements that are belonging
         to a behavior space in the BSSD.
 
         Parameters:
             lanelet (lanelet):Optional reference lanelet for the creation of a BehaviorSpace object.
-            bdr_alg (linestring):Optional linestring that represents the long boundary along the reference direction.
-            bdr_agst (linestring):Optional linestring that represents the long boundary against the reference direction.
+            long_boundary_along (linestring):Optional linestring that represents the long boundary along the reference direction.
+            long_boundary_against (linestring):Optional linestring that represents the long boundary against the reference direction.
 
         Returns:
             BehaviorSpace(BehaviorSpace):The created BehaviorSpace object.
@@ -84,74 +85,76 @@ class BssdMap:
 
         # Check, if a lanelet is given
         if not lanelet:  # If not, not linestrings will be linked for the lateral boundaries.
-            lB_ll = None
-            rB_ll = None
+            left_boundary_of_lanelet = None
+            right_boundary_of_lanelet = None
         else:  # If yes, the linestrings will be linked to the objects of the lateral boundaries.
-            lB_ll = lanelet.leftBound
-            rB_ll = lanelet.rightBound
+            left_boundary_of_lanelet = lanelet.leftBound
+            right_boundary_of_lanelet = lanelet.rightBound
 
         # Creating behavior elements for both directions and adding them immediately to the BSSD map class
         # Also, the longitudinale boundary linestring and lateral linestrings are handed over to link them
-        behavior_agst = self.add(self.create_behavior(lB_ll, rB_ll, bdr_agst))
-        behavior_alg = self.add(self.create_behavior(rB_ll, lB_ll, bdr_alg))
+        behavior_against = self.add(self.create_behavior(left_boundary_of_lanelet, right_boundary_of_lanelet, long_boundary_against))
+        behavior_along = self.add(self.create_behavior(right_boundary_of_lanelet, left_boundary_of_lanelet, long_boundary_along))
 
         # Creating the BehaviorSpace element and adding it to the BSSD map class
-        return self.add(BehaviorSpace(b_agst=behavior_agst, b_alg=behavior_alg, ll=lanelet))
+        return self.add(BehaviorSpace(behavior_against, behavior_along, lanelet))
 
-    def create_behavior(self, leftBdr, rightBdr, longBdr):
-        '''
+    def create_behavior(self, left_boundary, right_boundary, long_boundary):
+        """
         Joins two dictionaries. Intended for dictionaries with partially mutual keys. This way the values of
         the two dictionaries for the same key are being combined in a list. This function is used for the segment search.
 
             Parameters:
-                leftBdr (BoundaryLat):Lateral boundary object for the left boundary.
-                rightBdr (BoundaryLat):Lateral boundary object for the right boundary.
-                longBdr (BoundaryLong):Longitudinal boundary object.
+                left_boundary (BoundaryLat):Lateral boundary object for the left boundary.
+                right_boundary (BoundaryLat):Lateral boundary object for the right boundary.
+                long_boundary (BoundaryLong):Longitudinal boundary object.
 
             Returns:
                 Behavior(Behavior):The created Behavior object.
-        '''
+        """
+
         # Create objects for the lateral boundary elements and give them the linestring objects as an argument
         # for optional linkage.
-        b_right = self.add(BoundaryLat(rightBdr))
-        b_left = self.add(BoundaryLat(leftBdr))
+        boundary_object_right = self.add(BoundaryLat(right_boundary))
+        boundary_object_left = self.add(BoundaryLat(left_boundary))
         # Create an empty Reservation object
-        res = self.add(Reservation())
+        reservation_object = self.add(Reservation())
 
         # Check, if a longitudinal boundary linestring is given.
-        if longBdr:  # If yes, create a longitudinal boundary object.
-            b_long = self.add(BoundaryLong(longBdr))
+        if long_boundary:  # If yes, create a longitudinal boundary object.
+            b_long = self.add(BoundaryLong(long_boundary))
         else:  # If not, no longitudinal boundary object will be created
             b_long = None
 
         # Creating the Behavior element and adding it to the BSSD map class and eventually returning it
-        return Behavior(bdr_left=b_left, bdr_right=b_right, bdr_long=b_long, res=res)
+        return Behavior(boundary_left=boundary_object_left, boundary_right=boundary_object_right,
+                        boundary_long=b_long, reservation=reservation_object)
 
 
 class BssdElement:
     """
-        This class is an abstract class for BSSD elements. The specific BSSD element classes inherit from this one.
+    This class is an abstract class for BSSD elements. The specific BSSD element classes inherit from this one.
 
-        Attributes
-        ----------
-            attributes : BSSD Core object
-                Creating an empty attribute attributes. For this the BSSD Core objects
-                will be assigned in the specific functions.
-            id : int
-                The identification number for the bssd element
-            visible : bool
-                Specifies the visibility of an OSM object.
-            version : int
-                The version of an OSM object
+    Attributes
+    ----------
+        attributes : BSSD Core object
+            Creating an empty attribute attributes. For this the BSSD Core objects
+            will be assigned in the specific functions.
+        id : int
+            The identification number for the bssd element
+        visible : bool
+            Specifies the visibility of an OSM object.
+        version : int
+            The version of an OSM object
 
-        Methods
-        -------
-            __init__():
-                This method is being inherited by the specific BSSD objects.
-                It sets an unique ID and by OSM required information like visible and version.
-            assign_to_attributes():
-                assigns the attributes ID, visible and version to the BSSD Core object that is aggregated as attributes.
-        """
+    Methods
+    -------
+        __init__():
+            This method is being inherited by the specific BSSD objects.
+            It sets an unique ID and by OSM required information like visible and version.
+        assign_to_attributes():
+            assigns the attributes ID, visible and version to the BSSD Core object that is aggregated as attributes.
+    """
 
     def __init__(self):
         self.attributes = None
@@ -185,17 +188,17 @@ class BehaviorSpace(BssdElement):
         __init__():
             If given, assigns behavior and lanelet objects. Assigns attributs that are given through BssdElements class
             to BSSD Core class which is added beforehand.
-        assign_along(bhvr):
+        assign_along(behavior):
             Assigns a given Behavior object to both the attribute and the BSSD Core object in 'attributes'. For the
             latter, it uses the ID and the add_along method.
-        assign_agst(bhvr):
+        assign_agst(behavior):
             Assigns a given Behavior object to both the attribute and the BSSD Core object in 'attributes'. For the
             latter, it uses the ID and the add_against method.
         assign_lanelet(ll):
             assigns a given lanelet object to both the attribute and the BSSD Core object in 'attributes'. For the
             latter, it uses the ID and the add_lanelet method.
     """
-    def __init__(self, b_agst=None, b_alg=None, ll=None):
+    def __init__(self, behavior_against=None, behavior_along=None, lanelet=None):
         super().__init__()
         self.alongBehavior = None
         self.againstBehavior = None
@@ -203,35 +206,30 @@ class BehaviorSpace(BssdElement):
         self.attributes = mutable.BehaviorSpace()
         self.assign_to_attributes()
 
-        if b_agst:
-            self.assign_agst(b_agst)
+        if behavior_against:
+            self.assign_against(behavior_against)
 
-        if b_alg:
-            self.assign_along(b_alg)
+        if behavior_along:
+            self.assign_along(behavior_along)
 
-        if ll:
-            self.assign_lanelet(ll)
+        if lanelet:
+            self.assign_lanelet(lanelet)
 
     def __str__(self):
-        # Print ID and Behavior ID for agst and alg
-        id_str = 'id: ' + str(self.id)
-        behavior_agst = ', id behavior along: ' + str(self.alongBehavior.id)
-        behavior_alg = ', id behavior against: ' + str(self.againstBehavior.id)
+        return f'id: {self.id}, id behavior along: {self.alongBehavior.id},' \
+               f' id behavior against: {self.againstBehavior.id}'
 
-        # return str([id_str, behavior_agst, behavior_alg])
-        return id_str + behavior_agst + behavior_alg
+    def assign_along(self, behavior: Behavior):
+        self.alongBehavior = behavior
+        self.attributes.add_along(behavior.id)
 
-    def assign_along(self, bhvr: Behavior):
-        self.alongBehavior = bhvr
-        self.attributes.add_along(bhvr.id)
+    def assign_against(self, behavior: Behavior):
+        self.againstBehavior = behavior
+        self.attributes.add_against(behavior.id)
 
-    def assign_agst(self, bhvr: Behavior):
-        self.againstBehavior = bhvr
-        self.attributes.add_against(bhvr.id)
-
-    def assign_lanelet(self, ll: Lanelet):
-        self.ref_lanelet = ll
-        self.attributes.add_lanelet(ll.id)
+    def assign_lanelet(self, lanelet: Lanelet):
+        self.ref_lanelet = lanelet
+        self.attributes.add_lanelet(lanelet.id)
 
 
 class Behavior(BssdElement):
@@ -253,7 +251,7 @@ class Behavior(BssdElement):
 
     Methods
     -------
-        __init__(res, bdr_long, bdr_left, bdr_right):
+        __init__(reservation, boundary_long, boundary_left, boundary_right):
             If given, assigns a Reservation and the three boundary objects. Assigns attributes that are given through
             BssdElements class to BSSD Core class which is added beforehand.
         assign_left_boundary(BoundaryLat):
@@ -265,7 +263,7 @@ class Behavior(BssdElement):
         assign_reservation(Reservation):
             assigns a given Reservation object to both the attribute and the BSSD Core object in 'attributes'.
     """
-    def __init__(self, res=None, bdr_long=None, bdr_left=None, bdr_right=None):
+    def __init__(self, reservation=None, boundary_long=None, boundary_left=None, boundary_right=None):
         super().__init__()
         self.reservation = []
         self.longBound = None
@@ -274,42 +272,37 @@ class Behavior(BssdElement):
         self.attributes = mutable.Behavior()
         self.assign_to_attributes()
 
-        # Todo: Give an option for multiple reservation instances
+        if reservation:
+            self.assign_reservation(reservation)
 
-        if res:
-            self.assign_reservation(res)
+        if boundary_long:
+            self.assign_long_boundary(boundary_long)
 
-        if bdr_long:
-            self.assign_long_boundary(bdr_long)
+        if boundary_left:
+            self.assign_left_boundary(boundary_left)
 
-        if bdr_left:
-            self.assign_left_boundary(bdr_left)
-
-        if bdr_right:
-            self.assign_right_boundary(bdr_right)
-
+        if boundary_right:
+            self.assign_right_boundary(boundary_right)
 
     def __str__(self):
-        # Print ID
-        id_str = 'id: ' + str(self.id)
+        return f'id: {self.id}, id long boundary: {self.longBound.id}, ' \
+               f'id left bound: {self.leftBound.id}, id right bound:  {self.rightBound.id}'
 
-        return id_str
+    def assign_left_boundary(self, boundary_linestring: BoundaryLat):
+        self.leftBound = boundary_linestring
+        self.attributes.add_boundary_left(boundary_linestring.id)
 
-    def assign_left_boundary(self, bound: BoundaryLat):
-        self.leftBound = bound
-        self.attributes.add_boundary_left(bound.id)
+    def assign_right_boundary(self, boundary_linestring: BoundaryLat):
+        self.rightBound = boundary_linestring
+        self.attributes.add_boundary_right(boundary_linestring.id)
 
-    def assign_right_boundary(self, bound: BoundaryLat):
-        self.rightBound = bound
-        self.attributes.add_boundary_right(bound.id)
+    def assign_long_boundary(self, boundary_linestring: BoundaryLong):
+        self.longBound = boundary_linestring
+        self.attributes.add_boundary_long(boundary_linestring.id)
 
-    def assign_long_boundary(self, bound: BoundaryLong):
-        self.longBound = bound
-        self.attributes.add_boundary_long(bound.id)
-
-    def assign_reservation(self, res: Reservation):
-        self.reservation.append(res)
-        self.attributes.add_reservation(res.id)
+    def assign_reservation(self, reservation: Reservation):
+        self.reservation.append(reservation)
+        self.attributes.add_reservation(reservation.id)
 
 
 class Reservation(BssdElement):
@@ -332,12 +325,7 @@ class Reservation(BssdElement):
         self.assign_to_attributes()
 
     def __str__(self):
-        # Print ID and
-        id_str = 'id: ' + str(self.id)
-        # b = ', id behavior: ' + str(self.id_b)
-        b = ', id behavior: ' + str(0)
-
-        return id_str + b
+        return f'id: {self.id}'
 
 
 class BoundaryLat(BssdElement):
@@ -356,27 +344,24 @@ class BoundaryLat(BssdElement):
         __init__():
             If given, assigns a linestring object as the boundary. Assigns attributes that are given through
             BssdElements class to BSSD Core class which is added beforehand.
-        assign_ls(LineString2d | LineString3d):
+        assign_linestring(LineString2d | LineString3d):
             Assigns a given Linestring object to both the attribute and the BSSD Core object in 'attributes'.
     """
-    def __init__(self, bdr=None):
+    def __init__(self, boundary_linestring=None):
         super().__init__()
         self.lineString = None
         self.attributes = mutable.BoundaryLat()
         self.assign_to_attributes()
 
-        if bdr:
-            self.assign_ls(bdr)
+        if boundary_linestring:
+            self.assign_linestring(boundary_linestring)
 
     def __str__(self):
-        # Print ID and
-        id_str = 'id: ' + str(self.id)
-        bdr = ', id linestring: ' + str(self.lineString.id)
-        return id_str + bdr
+        return f'id: {self.id}, id linestring: {self.lineString.id}'
 
-    def assign_ls(self, ls: LineString2d | LineString3d):
-        self.lineString = ls
-        self.attributes.add_boundary(ls.id)
+    def assign_linestring(self, linestring: LineString2d | LineString3d):
+        self.lineString = linestring
+        self.attributes.add_boundary(linestring.id)
 
 
 class BoundaryLong(BssdElement):
@@ -395,25 +380,22 @@ class BoundaryLong(BssdElement):
         __init__():
             If given, assigns a linestring object as the boundary. Assigns attributes that are given through
             BssdElements class to BSSD Core class which is added beforehand.
-        assign_ls(Linestring2d | Linestring3d):
+        assign_linestring(Linestring2d | Linestring3d):
             Assigns a given Linestring object to both the attribute and the BSSD Core object in 'attributes'.
     """
-    def __init__(self, bdr=None):
+    def __init__(self, boundary_linestring=None):
         super().__init__()
         self.lineString = None
         self.ref_line = None
         self.attributes = mutable.BoundaryLong()
         self.assign_to_attributes()
 
-        if bdr:
-            self.assign_ls(bdr)
+        if boundary_linestring:
+            self.assign_linestring(boundary_linestring)
 
     def __str__(self):
-        # Print ID and
-        id_str = 'id: ' + str(self.id)
-        bdr = ', id linestring: ' + str(self.lineString.id)
-        return id_str+bdr
+        return f'id: {self.id}, id linestring: {self.lineString.id}'
 
-    def assign_ls(self, ls: LineString2d | LineString3d):
-        self.lineString = ls
-        self.attributes.add_boundary(ls.id)
+    def assign_linestring(self, linestring: LineString2d | LineString3d):
+        self.lineString = linestring
+        self.attributes.add_boundary(linestring.id)

@@ -6,6 +6,8 @@ import osmium
 import lanelet2
 from lanelet2.projection import UtmProjector
 
+from .util import make_positive
+
 logger = logging.getLogger('framework.io_handler')
 
 
@@ -55,17 +57,27 @@ class IoHandler:
         self._tmp_bssd_file = os.path.join(self._tmp_dir.name, "bssd.osm")
 
     def load_map(self):
-        """Load a Lanelet2-map from a given file and creating a map and graph for storing its data in variables."""
-        return lanelet2.io.load(self.input_path, self.projector)
+        """Load a Lanelet2-map from a given file and create a map for storing its data in a map class.
+        First, check every item of each layer for being negative and assign a positive ID if necessary."""
+        map_lanelet = lanelet2.io.load(self.input_path, self.projector)
+
+        make_positive(map_lanelet.pointLayer)
+        make_positive(map_lanelet.lineStringLayer)
+        make_positive(map_lanelet.polygonLayer)
+        make_positive(map_lanelet.laneletLayer)
+        make_positive(map_lanelet.areaLayer)
+        make_positive(map_lanelet.regulatoryElementLayer)
+
+        return map_lanelet
 
     def autodetect_coordinates(self):
         """Automatically detect coordinates of a given lanelet2 map that can be used for coordinate projection."""
         coordinates = []
         # open input file
-        with open(self.input_path) as fp:
+        with open(self.input_path) as map_file:
 
             # run for-loop for every line in the OSM-file
-            for line in fp.readlines():
+            for line in map_file.readlines():
 
                 # search for both lat and lon in one line. Because both ' and " can be used in OSM take account for that
                 # If found extract the respective lat and lon coordinates and store them in a list
@@ -138,49 +150,48 @@ class IoHandler:
             file (path):Filename of the original map file. Output filename is based on it and extended by _BSSD.
         """
 
-        data = data2 = ""
         # path_output = 'Output/' + file[:-4] + '_BSSD.osm'
         path_output = file[:-4] + '_BSSD.osm'
 
         # Reading data from Lanelet2 file except the last line
         with open(self._tmp_ll_file) as fp:
-            data = fp.readlines()[:-1]
+            map_data_lanelet2 = fp.readlines()[:-1]
 
         # Reading data from BSSD file expect the first two lines
         with open(self._tmp_bssd_file) as fp:
-            data2 = fp.readlines()[2:]
+            map_data_bssd = fp.readlines()[2:]
 
         # Merging both files
-        data += data2
+        map_combined = map_data_lanelet2 + map_data_bssd
 
+        # Overwrite an existing file with the same name
         if os.path.isfile(path_output):
             os.remove(path_output)
         with open(path_output, 'w') as fp:
-            fp.writelines(data)
+            fp.writelines(map_combined)
 
         logger.info(f'Saved file as {path_output}')
 
     @staticmethod
-    def reverse_changes(map_ll):
+    def reverse_changes(map_lanelet):
         """
         Removes lanelet tags that have been set during the framework for storing data. To keep the original Lanelet2
         elements as they were, this function deletes the attributes from the lanelets. At the moment data for bicycle
         lanes and for speed limit are stored in the lanelet attributes.
 
         Parameters:
-            map_ll (laneletMap):Lanelet map object that contains all the Lanelet2 objects of the map.
+            map_lanelet (laneletMap):Lanelet map object that contains all the Lanelet2 objects of the map.
         """
         # Run a for-loop for every lanelet in the map
-        for ll in map_ll.laneletLayer:
+        for lanelet in map_lanelet.laneletLayer:
 
             # Remove the affected attributes
-            del ll.attributes['relevant_bicycle_lane']
-            del ll.attributes['own_speed_limit']
-            del ll.attributes['other_speed_limit']
-            del ll.attributes['own_speed_limit_link']
-            del ll.attributes['other_speed_limit_link']
+            del lanelet.attributes['relevant_bicycle_lane']
+            del lanelet.attributes['own_speed_limit']
+            del lanelet.attributes['other_speed_limit']
+            del lanelet.attributes['own_speed_limit_link']
+            del lanelet.attributes['other_speed_limit_link']
 
         logger.debug(f'All lanelet tags that were added within this framework succesfully removed.')
-        # return the map
-        return map_ll
+        return map_lanelet
 

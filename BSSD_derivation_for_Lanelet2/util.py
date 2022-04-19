@@ -46,37 +46,37 @@ def angle_between(v1, v2):
     return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))*360/(2*math.pi)
 
 
-def angle_between_lanelets(ll1, ll2):
+def angle_between_lanelets(lanelet_1, lanelet_2):
     """
     Returns the angle in degree between two lanelets. Therefore, their centerlines are being used. Their order doesn't
     influence the result, since always the minimal possible, positive angle is being calculated.
 
     Parameters:
-        ll1 (lanelet):The first lanelet.
-        ll2 (lanelet):The second lanelet.
+        lanelet_1 (lanelet):The first lanelet.
+        lanelet_2 (lanelet):The second lanelet.
 
     Returns:
         angle (float):Angle between lanelets in degree.
     """
-    v1 = linestring_to_vector(ll1.centerline)
-    v2 = linestring_to_vector(ll2.centerline)
+    v1 = linestring_to_vector(lanelet_1.centerline)
+    v2 = linestring_to_vector(lanelet_2.centerline)
     return angle_between(v1, v2)
 
 
-def angle_between_linestrings(ls1, ls2):
+def angle_between_linestrings(linestring_1, linestring_2):
     """
     Returns the angle in degree between two linestrings. Therefore, first and last points are being used. Their order
     doesn't influence the result, since always the minimal possible, positive angle is being calculated.
 
     Parameters:
-        ls1 (linestring):The first linestring.
-        ls2 (linestring):The second linestring.
+        linestring_1 (linestring):The first linestring.
+        linestring_2 (linestring):The second linestring.
 
     Returns:
         angle (float):Angle between linestrings in degree.
     """
-    v1 = linestring_to_vector(ls1)
-    v2 = linestring_to_vector(ls2)
+    v1 = linestring_to_vector(linestring_1)
+    v2 = linestring_to_vector(linestring_2)
     return angle_between(v1, v2)
 
 
@@ -159,3 +159,15 @@ def edit_log_file(log_file):
     # write the edited line order into the log-file
     with open(log_file, "w") as file:
         file.writelines(contents[:-nr-2])
+
+
+def make_positive(layer):
+    """
+    For every element of a layer, check if their ID is negative. If yes, assign a positive ID.
+
+    Parameters:
+        layer (layer):Layer of a Lanelet2 map.
+    """
+    for elem in layer:
+        if elem.id < 0:
+            elem.id = layer.uniqueId()

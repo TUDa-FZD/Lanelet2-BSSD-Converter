@@ -28,20 +28,21 @@ OS used for this tutorial: Ubuntu 20.04
          <code>apt-get install python3-venv</code>
       2. Create a virtual environment in the catkin workspace folder:  
          <code>python3 -m venv env</code>
-   7. in Lanelet2_WS invoke  
-      catkin init  
-      and for Python setup (edit the python version at the end to adjust to the version on your system! Ubuntu 20.04 ships with 3.8)
+   7. in "Lanelet2_WS" directory invoke  
+      <code>catkin init</code>  
+      and for Python setup (edit the python version at the end to adjust to the version on your system! Ubuntu 20.04 ships with 3.8)  
       <code>catkin config --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPYTHON_VERSION=3.8 </code>
-   8. in Lanelet2_WS invoke
+   8. in "Lanelet2_WS" directory invoke  
       <code>catkin build</code>
-   9. add the following code to to ~/.bashrc (In Files, go to home, enable “show hidden files” in the hamburger menu and add those two lines at the very end of the file “.bashrc”, save and close)
-      <code>source /opt/ros/noetic/setup.bash</code>
-      <code>source "your path to the workspace-folder created in 3.1"/devel/setup.bash </code>
+   9. add the following code to to ~/.bashrc (In Files, go to home, enable “show hidden files” in the hamburger menu and
+      add those two lines at the very end of the file “.bashrc”, save and close)
+       <code>source /opt/ros/noetic/setup.bash  
+       source "your path to the workspace-folder created in 3.1"/devel/setup.bash </code>
 4. Test your installation: 
    1. Open Terminal anywhere 
    2. type, but don’t invoke
       <code>rosrun lane </code>
-   3. Press the key for tab 
+   3. Press tab on your keyboard
    4. If the word “lane” is automatically completed to “lanelet2”, the installation worked.
 
 
