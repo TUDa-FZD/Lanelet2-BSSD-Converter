@@ -337,7 +337,7 @@ class DataHandler:
         logger.debug(f'Deriving behavioral demand of lateral boundary of alongBehavior (left,'
                      f' ID:{behavior_space.alongBehavior.leftBound.id}) and '
                      f'againstBehavior (right, ID:{behavior_space.againstBehavior.rightBound.id})')
-        if behavior_space.alongBehavior.leftBound.inverted():
+        if behavior_space.alongBehavior.leftBound.lineString.inverted():
             side_along = 'right'
         else:
             side_along = 'left'
@@ -345,7 +345,7 @@ class DataHandler:
         logger.debug(f'Deriving behavioral demand of lateral boundary of againstBehavior (left,'
                      f' ID:{behavior_space.againstBehavior.leftBound.id}) and '
                      f'alongBehavior (right, ID:{behavior_space.alongBehavior.rightBound.id})')
-        if behavior_space.againstBehavior.leftBound.inverted():
+        if behavior_space.againstBehavior.leftBound.lineString.inverted():
             side_against = 'left'
         else:
             side_against = 'right'
