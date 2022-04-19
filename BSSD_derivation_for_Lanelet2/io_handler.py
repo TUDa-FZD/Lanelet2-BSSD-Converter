@@ -24,9 +24,9 @@ class IoHandler:
             origin coordinates that are used by the Lanelet2 projector for lat/long - metric conversions as origin
         projector : UtmProjector
             Storing Reservation elements as values using their ID as the key.
-        _tmp_dir : path
+        _tmp_directory : path
             Temporarily created directory to store separate files for Lanelet2 and BSSD objects to eventually merge them.
-        _tmp_ll_file : path
+        _tmp_lanelet_file : path
             Temporary file path for a file that stores all the Lanelet2 objects after the framework was running.
         _tmp_bssd_file : path
             Temporary file path for a file that stores all the BSSD objects after the framework was running.
@@ -52,9 +52,9 @@ class IoHandler:
             logger.debug(f'Automatically detected coordinates {self.origin_coordinates} for origin of the projection.')
         self.projector = UtmProjector(lanelet2.io.Origin(self.origin_coordinates[0], self.origin_coordinates[1]))
 
-        self._tmp_dir = tf.TemporaryDirectory()
-        self._tmp_ll_file = os.path.join(self._tmp_dir.name, "ll2.osm")
-        self._tmp_bssd_file = os.path.join(self._tmp_dir.name, "bssd.osm")
+        self._tmp_directory = tf.TemporaryDirectory()
+        self._tmp_lanelet_file = os.path.join(self._tmp_directory.name, "ll2.osm")
+        self._tmp_bssd_file = os.path.join(self._tmp_directory.name, "bssd.osm")
 
     def load_map(self):
         """Load a Lanelet2-map from a given file and create a map for storing its data in a map class.
@@ -108,7 +108,7 @@ class IoHandler:
             log_file (path):Automatically created path the log file ('{map_name}+_BSSD.log').
         """
         if not file_path:
-            file_path = self._tmp_ll_file
+            file_path = self._tmp_lanelet_file
 
         # ---- Reverse Changes ----
         # Comment this block to keep the lanelet attributes used in this framework in the map
@@ -154,7 +154,7 @@ class IoHandler:
         path_output = file[:-4] + '_BSSD.osm'
 
         # Reading data from Lanelet2 file except the last line
-        with open(self._tmp_ll_file) as fp:
+        with open(self._tmp_lanelet_file) as fp:
             map_data_lanelet2 = fp.readlines()[:-1]
 
         # Reading data from BSSD file expect the first two lines

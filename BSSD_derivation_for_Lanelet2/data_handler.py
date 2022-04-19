@@ -172,7 +172,7 @@ class DataHandler:
             id_previous_linestring (lanelet):Linestring of the previous lanelet/behavior space.
 
         Returns:
-            linestring (LineString2d | LineString3d):Linestring representing determined geometry of  longitudinal bdry.
+            linestring (LineString2d | LineString3d):Linestring representing determined geometry of longitudinal bdry.
             ref_line (bool):ID of the orig. linestring the new linestring has been derived from (None if not existent).
         """
 

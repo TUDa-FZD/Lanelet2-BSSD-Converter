@@ -19,7 +19,10 @@ run through the necessary steps of the BSSD derivation.
 def main():
     parser = argparse.ArgumentParser(description="Run BSSD-derivation framework")
     parser.add_argument("-m", "--map", help="Lanelet2 map file", dest="filepath", type=str, required=True)
-    parser.add_argument("-c", "--coordinates", help="origin coordinates for projection", dest="origin_coordinates", type=str, required=False)
+    parser.add_argument("-lat", "--latitude_coordinate", help="latitude origin coordinate for projection",
+                        dest="latitude", type=float, required=False)
+    parser.add_argument("-lon", "--longitude_coordinate", help="longitude origin coordinate for projection",
+                        dest="longitude", type=float, required=False)
     parser.set_defaults(func=framework)
     args = parser.parse_args()
     args.func(args)
@@ -38,7 +41,10 @@ def framework(args):
     logger, log_file = setup_logger(file)
 
     # Load the Lanelet2 map using the IO module
-    io = IoHandler(file)
+    if args.latitude and args.longitude:
+        io = IoHandler(file, [args.latitude, args.longitude])
+    else:
+        io = IoHandler(file)
     map_lanelet = io.load_map()
 
     # Save the amount of linestrings existing in this map to determine the number of newly created linestrings at
