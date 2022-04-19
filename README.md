@@ -17,18 +17,22 @@ space is created some properties of its behavior attributes are derived.
 
 1. Install Lanelet2 following this [guide](doc/Lanelet2 installation guide.md).
 
-2. Clone the Repository (with HTTPS or SSH)
+2. Go to the directory of your choice and clone the Repository (with HTTPS or SSH)
    1. HTTPS:  
-   <code>git clone https://git.rwth-aachen.de/fzd/unicar-agil/studentische-arbeiten/math-837/-/tree/develop </code>
+   <code>git clone https://git.rwth-aachen.de/fzd/unicar-agil/studentische-arbeiten/math-837.git </code>
    or 
    2. SSH:  
-   <code>git clone git@git.rwth-aachen.de/fzd/unicar-agil/studentische-arbeiten/math-837/-/tree/develop</code>
-3. Install package and dependencies by invoking the following in a terminal inside the directory of this framework  
+   <code>git clone git@git.rwth-aachen.de/fzd/unicar-agil/studentische-arbeiten/math-837 </code>
+3. In the same terminal, go into the directory math-837 with <code> cd math-837 </code>
+4. Install package and dependencies by invoking the following in the same terminal    
    <code> pip install -e .</code>
-4. Install BSSD core
-   1. In folder 'libraries' create a new folder <code>bssd</code>
-   2. invoke <code>git clone https://git.rwth-aachen.de/fzd/unicar-agil/sonstiges/bssd/core.git@develop </code>
-   3. <code> pip install -e path/to/bssd </code>
+5. Install BSSD Core
+   1. In directory math-837 create a new directory called <code>libraries</code> and
+   within that a directory called <code>bssd</code>.
+   2. Open a terminal in directory bssd and invoke <code>git clone
+   https://git.rwth-aachen.de/fzd/unicar-agil/sonstiges/bssd/core.git </code>
+   3. <code> cd core </code> and checkout the branch develop with <code> git checkout develop </code>
+   4. Install the BSSD Core with <code> pip install -e path/to/bssd-core </code>
    
 (Create & activate a virtual environment if you want to install the tool inside a virtual environment)
 
@@ -36,8 +40,7 @@ space is created some properties of its behavior attributes are derived.
 
 1. Get the path to the Lanelet2 map that you wish to derive the BSSD extension for.
 2. To start the tool, open a terminal window in the directory of the tool and invoke 
-   1. <code>source venv/bin/activate</code> to activate the virtual environment
-   2. <code> python3 framework.py -m path_to_Lanelet2_map </code>
+<code> python3 framework.py -m path_to_Lanelet2_map </code>
 3. The tool will automatically execute and show some information about the current status in the terminal.
 4. After successful execution, the modified Lanelet2 map will be stored in the same directory as the original map
 with "_BSSD" at the end of the filename.
