@@ -27,9 +27,8 @@ space is created some properties of its behavior attributes are derived.
 4. Install package and dependencies by invoking the following in the same terminal    
    <code> pip install -e .</code>
 5. Install BSSD Core
-   1. In directory math-837 create a new directory called <code>libraries</code> and
-   within that a directory called <code>bssd</code>.
-   2. Open a terminal in directory bssd and invoke
+   1. In directory math-837 create a new directory called <code>libraries</code>.
+   2. Open a terminal in directory libraries and invoke
    <code>git clone https://git.rwth-aachen.de/fzd/unicar-agil/sonstiges/bssd/core.git </code>
    3. <code> cd core </code> and checkout the branch develop with <code> git checkout develop </code>
    4. Install the BSSD Core with <code> pip install -e . </code>
