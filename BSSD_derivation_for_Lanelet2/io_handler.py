@@ -191,6 +191,8 @@ class IoHandler:
             del lanelet.attributes['other_speed_limit']
             del lanelet.attributes['own_speed_limit_link']
             del lanelet.attributes['other_speed_limit_link']
+            del lanelet.attributes['along_speed_limit']
+            del lanelet.attributes['against_speed_limit']
 
         logger.debug(f'All lanelet tags that were added within this framework succesfully removed.')
         return map_lanelet

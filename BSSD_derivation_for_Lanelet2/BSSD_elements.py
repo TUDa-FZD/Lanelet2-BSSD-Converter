@@ -93,8 +93,8 @@ class BssdMap:
 
         # Creating behavior elements for both directions and adding them immediately to the BSSD map class
         # Also, the longitudinale boundary linestring and lateral linestrings are handed over to link them
-        behavior_against = self.add(self.create_behavior(left_boundary_of_lanelet, right_boundary_of_lanelet, long_boundary_against))
-        behavior_along = self.add(self.create_behavior(right_boundary_of_lanelet, left_boundary_of_lanelet, long_boundary_along))
+        behavior_against = self.add(self.create_behavior(right_boundary_of_lanelet, left_boundary_of_lanelet, long_boundary_against))
+        behavior_along = self.add(self.create_behavior(left_boundary_of_lanelet, right_boundary_of_lanelet, long_boundary_along))
 
         # Creating the BehaviorSpace element and adding it to the BSSD map class
         return self.add(BehaviorSpace(behavior_against, behavior_along, lanelet))
