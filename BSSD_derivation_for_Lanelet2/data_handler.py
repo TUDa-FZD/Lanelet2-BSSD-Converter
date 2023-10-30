@@ -113,7 +113,7 @@ class DataHandler:
 
         # Retrieve lanelet object from lanelet map via ID
         lanelet = self.map_lanelet.laneletLayer[lanelet_id]
-        # Remove current lanelet from list of relevant lanelets to keep track which lanelets stilanelet have to be done
+        # Remove current lanelet from list of relevant lanelets to keep track which lanelets still have to be done
         self.relevant_lanelets.remove(lanelet_id)
 
         logger.debug(f'----------------------------------------------------------------------------------------------')

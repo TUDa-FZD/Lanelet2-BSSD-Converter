@@ -60,5 +60,6 @@ LANE_MARK = {'curbstone': {'low': ct.PROHIBITED,
              'keepout': ct.PROHIBITED,
              'zig-zag': ct.ALLOWED,
              'BSSD': {'boundary': ct.ALLOWED},
+             'bike_marking': ct.ALLOWED
              }
 
