@@ -1,14 +1,14 @@
-# Development of a Framework for the Automated Generation of the BSSD Extension for Lanelet2 Maps
+# Framework for the Automated Generation of the BSSD Extension for Lanelet2 Maps
 
 This framework generates the BSSD extension for Lanelet2 maps. Behavior spaces are therefore mapped
 on lanelets. For each lanelet of a map that can be reached by a motorized vehicle a behavior
-space is created some properties of its behavior attributes are derived.
+space is created and some properties of its behavior attributes are already derived.
 
 ## Requirements
 
 - Python (implemented with 3.8)
 - [Lanelet2](https://github.com/fzi-forschungszentrum-informatik/Lanelet2)
-- [BSSD Core](https://git.rwth-aachen.de/fzd/unicar-agil/sonstiges/bssd/core)
+- [BSSD Core](https://git.rwth-aachen.de/fzd/unicar-agil/sonstiges/bssd/core) (included as submodule)
 - packages
   - numpy
   - pyosmium
@@ -17,20 +17,17 @@ space is created some properties of its behavior attributes are derived.
 
 1. Install Lanelet2 following this [guide](doc/Lanelet2 installation guide.md).
 
-2. Go to the directory of your choice and clone the Repository (with HTTPS or SSH)
+2. Go to the directory of your choice and clone the repository (with HTTPS or SSH) including all submodules
    1. HTTPS:  
-   <code>git clone https://git.rwth-aachen.de/fzd/unicar-agil/studentische-arbeiten/math-837.git </code>
+   <code>git clone --recurse-submodules https://git.rwth-aachen.de/fzd/unicar-agil/sonstiges/bssd/lanelet2_bssd_converter.git </code>
    or 
    2. SSH:  
-   <code>git clone git@git.rwth-aachen.de/fzd/unicar-agil/studentische-arbeiten/math-837 </code>
-3. In the same terminal, go into the directory math-837 with <code> cd math-837 </code>
+   <code>git clone --recurse-submodules git@git.rwth-aachen.de:fzd/unicar-agil/sonstiges/bssd/lanelet2_bssd_converter.git </code>
+3. In the same terminal, go into the directory lanelet2_bssd_converter with <code> cd lanelet2_bssd_converter </code>
 4. Install package and dependencies by invoking the following in the same terminal    
-   <code> pip install -e .</code>
+   <code> pip install -e . </code>
 5. Install BSSD Core
-   1. In directory math-837 create a new directory called <code>libraries</code>.
-   2. Open a terminal in directory libraries and invoke
-   <code>git clone https://git.rwth-aachen.de/fzd/unicar-agil/sonstiges/bssd/core.git </code>
-   3. <code> cd core </code> and checkout the branch develop with <code> git checkout develop </code>
+   1. Still in the same terminal, go to directory libraries/core with <code> cd libraries/core </code>
    4. Install the BSSD Core with <code> pip install -e . </code>
    
 (Create & activate a virtual environment if you want to install the tool inside a virtual environment)
