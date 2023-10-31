@@ -1,3 +1,5 @@
 .idea
 test_functions.py
 *.osm
+*.egg-info
+__pycache__/
