@@ -21,7 +21,7 @@ def main():
     parser.add_argument("-m", "--map", help="Lanelet2 map file", dest="filepath", type=str, required=True)
     parser.add_argument("-lat", "--latitude_coordinate", help="latitude origin coordinate for projection",
                         dest="latitude", type=float, required=False)
-    parser.add_argument("-lon", "--longitude_coordinate", help="longitude origin coordinate for projection",
+    parser.add_argument("-lon", "--longitude_coordinate", hebssdlp="longitude origin coordinate for projection",
                         dest="longitude", type=float, required=False)
     parser.set_defaults(func=framework)
     args = parser.parse_args()
