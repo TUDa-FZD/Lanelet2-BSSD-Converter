@@ -59,6 +59,9 @@ pip install lanelet2-bssd-converter
 with "_BSSD" at the end of the filename.
 5. Furthermore, a derivation-log-file is saved into the same directory.
 
+> Note: use ```lanelet2-bssd-converter -h``` to see all the available options for the tool.
+
+
 ## Architecture
 
 To get an overview of how this framework is build, read [this](/doc/architecture.md).
@@ -66,7 +69,7 @@ To get an overview of how this framework is build, read [this](/doc/architecture
 ## Tests
 
 To run the tests that are included with pytest, open a terminal in the directory in which the repository
-is installed and invoke  
+is installed and invoke
 ```bash
 pytest test
 ```
