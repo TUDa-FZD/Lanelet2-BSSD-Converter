@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lanelet2-bssd-converter"
-version = "0.9.0"
+version = "0.9.1"
 description = "Extends Lanelet2 maps with empty BSSD structure and derive behavioral demands."
 readme = "README.md"
 authors = [

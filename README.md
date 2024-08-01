@@ -27,12 +27,12 @@ pip install lanelet2-bssd-converter
 1. Go to the directory of your choice and clone the repository (with HTTPS or SSH)
    - HTTPS:
       ```bash
-        git clone https://git.rwth-aachen.de/fzd/unicar-agil/sonstiges/bssd/lanelet2_bssd_converter.git
+        git clone https://gitlab.com/tuda-fzd/scenery-representations-and-maps/lanelet2-bssd-converter.git
         ```
 
    - SSH:
       ```bash
-      git clone git@git.rwth-aachen.de:fzd/unicar-agil/sonstiges/bssd/lanelet2_bssd_converter.git
+      git clone git@gitlab.com:tuda-fzd/scenery-representations-and-maps/lanelet2-bssd-converter.git
       ```
 2. In the same terminal, go into the directory lanelet2_bssd_converter with
     ```bash
