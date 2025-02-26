@@ -1,7 +1,7 @@
 # Architecture
 
-The framework is divided into different modules that are responsible for different tasks.
-The main, executable script is framework.py which uses the modules to derive the BSSD for a given Lanelet2 map.  
+The tool is divided into different modules that are responsible for different tasks.
+The main executable script is framework.py which uses the modules to derive the BSSD for a given Lanelet2 map.
 
 ## Modules
 The following modules are included:
@@ -21,13 +21,13 @@ Static methods for geometry derivation and behavior derivation are partially mov
 and behavior_derivation to improve the overview in the data_handler class. Most of the methods are included in the
 DataHandler class, because they need access to attributes like the Lanelet2 map or the RoutingGraph. 
 - **geometry_derivation**: Additional functions for derivation of the geometry (currently the longitudinal boundary) of
-behavior spaces that don't require access to the map and graph data.
-- **behavior_derivation**: Additional functions for derivation of the geometry (currently the longitudinal boundary) of
-behavior spaces that don't require access to the map and graph data.
+behavior spaces.
+- **behavior_derivation**: Additional functions for derivation of the behavioral demands of
+behavior spaces.
 - **util**: Additional functions that are used all across the framework.
 - **constants**: Constant lists and dictionaries that are used within the framework, e.g. to initialize certain objects.
 
-## Processing of lanelet2 maps
+## Processing of Lanelet2 Maps
 
 1. Using the io_handler module, a Lanelet2 map is loaded.
 2. Using the preprocessing module, every relevant lanelet is being identified based on the currently used conditions.
@@ -42,20 +42,20 @@ behavior spaces that don't require access to the map and graph data.
       as a behavior space),
       2. creates a behavior space object including all the elements that are necessary for that,
       3. assigns the longitudinal boundaries to the respective behavior objects,
-      4. calls the function 'derive_behavior' in the DataHandler class which itself calls multiple functions,
+      4. calls the function 'derive_behavior' in the DataHandler class which itself calls multiple functions
       that derive behavioral demands for the newly created behavior space object.
 5. The io_handler module saves Lanelet2 and BSSD elements to separate files and merges those files to
 eventually achieve a united map-file of a Lanelet2 map with the generated BSSD extension.
 
-## Behavior derivation and extendability
-As mentioned in the previous section, the function 'derive_behavior' calls multiple sub functions that are deriving
-behavioral properties of the behavior attributes of BSSD. Since this framework is not deriving the entire behavioral
-demand of a scenery in Lanelet2 as of April 19, 2022, further integrations will be necessary to derive more behavior
+## Behavior Derivation and Extendability
+As mentioned in the previous section, the function 'derive_behavior' calls multiple sub functions that derive
+behavioral properties of the behavioral attributes of BSSD. Since this framework is not deriving the entire behavioral
+demand of a scenery in Lanelet2 yet, further integrations will be necessary to derive more behavioral
 attributes and their properties. To achieve this extension, more functions can be integrated in the method
-'derive_behavior' in the DataHandler class. The current derivations are spread over different behavior
+'derive_behavior' in the DataHandler class. The current derivations are spread over different behavioral
 attributes and can be seen as a demonstration how a derivation may be possible. At the moment the following derivations
 are included:
-- Derivation of the **CrossingType of lateral boundaries** based on there type and subtype. Furthermore, for parking
+- Derivation of the **CrossingType of lateral boundaries** based on their type and subtype. Furthermore, for parking
 areas next to a lateral boundary of a lanelet, the property 'parking_only' is derived. The following functions are used
 for this derivation:
   - DataHandler.derive_behavior_boundary_lateral
